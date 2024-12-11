@@ -1,7 +1,5 @@
 #include "nn.h"
 
-#define FLOAT_MAX 1e10
-
 void MiCo_argmax2d_f32(size_t *idx, const Tensor2D_F32 *x){
 
     for (size_t i = 0; i < x->shape[0]; i++){

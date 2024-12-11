@@ -10,6 +10,8 @@
 #include <malloc.h>
 #endif
 
+#define FLOAT_MAX 1e10
+
 // http://elm-chan.org/junk/32bit/binclude.html
 #define INCLUDE_FILE(section, filename, symbol) asm (\
     ".section "#section"\n"                   /* Change section */\
@@ -58,6 +60,8 @@ void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, Tensor4D_F32* weigh
 
 // Pooling Functions
 void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const size_t k_size, const size_t stride);
+void MiCo_maxpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t k_size, const size_t stride);
 
 // ReLU Functions
