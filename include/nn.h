@@ -50,6 +50,8 @@ typedef struct{
     float *data;
 } Tensor4D_F32; // 3-D Tensor
 
+// Connection Macro
+#define MiCo_CONNECT(y, x) (y)->data = (x)->data;
 // Linear/Dense Functions
 void MiCo_linear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
     const Tensor2D_F32 *weight, const Tensor1D_F32 *bias);
