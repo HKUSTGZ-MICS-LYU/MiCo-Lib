@@ -44,14 +44,13 @@ typedef struct{
 } Tensor3D_F32; // 3-D Tensor
 
 typedef struct{
-    size_t shape[3];
+    size_t shape[4];
     float *data;
 } Tensor4D_F32; // 3-D Tensor
 
 // Linear/Dense Functions
 void MiCo_linear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
     const Tensor2D_F32 *weight, const Tensor1D_F32 *bias);
-
 
 // Convolution Functions
 void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, Tensor4D_F32* weight, Tensor1D_F32* bias, 
@@ -63,5 +62,14 @@ void MiCo_relu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
 void MiCo_relu4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x);
 
 // Flatten Functions
-void MiCo_flatten2d_f32(Tensor2D_F32 *y, const Tensor3D_F32 *x);
+void MiCo_flatten2d_f32(Tensor2D_F32 *y, const Tensor4D_F32 *x);
+
+// Arg Functions
+void MiCo_argmax2d_f32(size_t *idx, const Tensor2D_F32 *x);
+
+// Utility Functions
+void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);
+void MiCo_print_tensor3d_f32(const Tensor3D_F32 *x);
+void MiCo_print_tensor4d_f32(const Tensor4D_F32 *x);
+
 #endif // __NN_H
