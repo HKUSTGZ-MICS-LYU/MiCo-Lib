@@ -12,11 +12,10 @@ __attribute__((weak)) void MiCo_linear_f32(
   const size_t in_features = x->shape[1];
   const size_t out_features = weight->shape[0];
   
+  // Initialize Output Tensor
   if (bias->shape[0] == 0){
-    for (size_t i = 0; i < batch_size; i++) {
-      for (size_t j = 0; j < out_features; j++) {
-        y->data[i * out_features + j] = 0.f;
-      }
+    for (size_t i = 0; i < batch_size * out_features; i++) {
+        y->data[i] = 0.f;
     }
   } else {
     for (size_t i = 0; i < batch_size; i++) {

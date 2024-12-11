@@ -56,6 +56,10 @@ void MiCo_linear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
 void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, Tensor4D_F32* weight, Tensor1D_F32* bias, 
     const size_t stride, const size_t padding, const size_t dilation, const size_t groups);
 
+// Pooling Functions
+void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const size_t k_size, const size_t stride);
+
 // ReLU Functions
 void MiCo_relu2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x);
 void MiCo_relu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
@@ -71,5 +75,8 @@ void MiCo_argmax2d_f32(size_t *idx, const Tensor2D_F32 *x);
 void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);
 void MiCo_print_tensor3d_f32(const Tensor3D_F32 *x);
 void MiCo_print_tensor4d_f32(const Tensor4D_F32 *x);
+
+// Test Functions
+void MiCo_assert(const int condition, const char *message);
 
 #endif // __NN_H

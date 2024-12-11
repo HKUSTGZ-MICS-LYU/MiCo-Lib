@@ -38,3 +38,10 @@ void MiCo_print_tensor4d_f32(const Tensor4D_F32 *x){
         printf("\n");
     }
 }
+
+void MiCo_assert(const int condition, const char *message){
+    if (!condition){
+        printf("%s\n", message);
+        exit(1);
+    }
+}
