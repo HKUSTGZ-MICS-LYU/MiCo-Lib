@@ -2,12 +2,12 @@
 #define __MICO_NN_H
 
 #include <stdint.h>
+#include <malloc.h>
 #ifdef RISCV
 #include "sim_stdlib.h"
 #else
 #include <stdlib.h>
 #include <string.h>
-#include <malloc.h>
 #endif
 
 #include "nn.h"

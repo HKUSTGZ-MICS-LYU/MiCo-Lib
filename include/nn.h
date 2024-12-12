@@ -2,12 +2,12 @@
 #define __NN_H
 
 #include <stdint.h>
+#include <malloc.h>
 #ifdef RISCV
 #include "sim_stdlib.h"
 #else
 #include <stdlib.h>
 #include <string.h>
-#include <malloc.h>
 #endif
 
 #define FLOAT_MAX 1e10
