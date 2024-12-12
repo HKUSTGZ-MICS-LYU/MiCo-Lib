@@ -57,7 +57,8 @@ void MiCo_linear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_F32 *weight, const Tensor1D_F32 *bias);
 
 // Convolution Functions
-void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, Tensor4D_F32* weight, Tensor1D_F32* bias, 
+void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const Tensor4D_F32* weight, const Tensor1D_F32* bias, 
     const size_t stride, const size_t padding, const size_t dilation, const size_t groups);
 
 // Pooling Functions

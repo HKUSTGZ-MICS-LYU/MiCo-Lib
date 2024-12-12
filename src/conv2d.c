@@ -1,7 +1,8 @@
 #include "nn.h"
 
 // Convolution Functions with Layout NCHW
-void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, Tensor4D_F32* weight, Tensor1D_F32* bias, 
+void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const Tensor4D_F32* weight, const Tensor1D_F32* bias, 
     const size_t stride, const size_t padding, const size_t dilation, const size_t groups){
     // groups and dilation are not implemented yet
     size_t batch_size = x->shape[0];

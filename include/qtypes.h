@@ -15,4 +15,7 @@ typedef uint32_t int2x16_t;
 typedef uint32_t int1x32_t;
 
 typedef uint32_t qword;
+
+typedef uint8_t qtype;
+
 #endif

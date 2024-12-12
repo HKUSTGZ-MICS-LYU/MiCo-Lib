@@ -10,8 +10,8 @@
 #include <malloc.h>
 #endif
 
+#include "nn.h"
 #include "qtypes.h"
-
 
 typedef struct {
     int8_t *data;
@@ -41,5 +41,17 @@ typedef struct{
     int8_t *data;
     float scale;
 } Tensor4D_Q8; // 3-D Tensor
+
+// Dense/Linear Functions
+void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
+    const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
+    const qtype wq, const qtype aq);
+
+// Convolution Functions
+void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const Tensor4D_Q8 *weight, const Tensor1D_F32 *bias, 
+    const qtype wq, const qtype aq,
+    const size_t stride, const size_t padding, 
+    const size_t dilation, const size_t groups);
 
 #endif // __MICO_NN_H
