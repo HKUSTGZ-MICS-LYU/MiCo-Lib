@@ -61,6 +61,10 @@ void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const Tensor4D_F32* weight, const Tensor1D_F32* bias, 
     const size_t stride, const size_t padding, const size_t dilation, const size_t groups);
 
+void MiCo_im2col_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const Tensor4D_F32* weight, const Tensor1D_F32* bias, 
+    const size_t stride, const size_t padding, const size_t dilation, const size_t groups);
+
 // Pooling Functions
 void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t k_size, const size_t stride);
@@ -83,7 +87,18 @@ void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);
 void MiCo_print_tensor3d_f32(const Tensor3D_F32 *x);
 void MiCo_print_tensor4d_f32(const Tensor4D_F32 *x);
 
+// MatMul Functions
+void MiCo_MatMul_f32(float* y, const float* x, const float* w, 
+    const size_t n, const size_t k, const size_t m);
+
 // Test Functions
 void MiCo_assert(const int condition, const char *message);
 
+// Im2Col Functions
+float im2col_get_pixel(float *im, int height, int width,
+                        int row, int col, int channel, int pad);
+void im2col(float *data_im,
+     int channels,  int height,  int width,
+     int ksize,  int stride, int pad, float *data_col);
+    
 #endif // __NN_H

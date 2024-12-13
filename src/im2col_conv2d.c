@@ -1,7 +1,7 @@
 #include "nn.h"
 
 // Convolution Functions with Layout NCHW
-__attribute__((weak)) void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+void MiCo_im2col_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const Tensor4D_F32* weight, const Tensor1D_F32* bias, 
     const size_t stride, const size_t padding, const size_t dilation, const size_t groups){
     // groups and dilation are not implemented yet
@@ -40,28 +40,14 @@ __attribute__((weak)) void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *
             }
         }
     }
-
+    float* col = malloc(in_c*kernel_size*out_h*out_w*sizeof(float));
     for (size_t b = 0; b < batch_size; b++){
-        for (size_t oc = 0; oc < out_c; oc++){
-            for (size_t oh = 0; oh < out_h; oh++){
-                for (size_t ow = 0; ow < out_w; ow++){
-                    float sum = 0;
-                    for (size_t ic = 0; ic < in_c; ic++){
-                        for (size_t kh = 0; kh < k_h; kh++){
-                            for (size_t kw = 0; kw < k_w; kw++){
-                                size_t ih = oh * stride + kh - padding;
-                                size_t iw = ow * stride + kw - padding;
-                                if (ih >= 0 && ih < in_h && iw >= 0 && iw < in_w){
-                                    sum += x->data[b * in_c * in_h * in_w + ic * in_h * in_w + ih * in_w + iw] * 
-                                        weight->data[oc * in_c * kernel_size + ic * kernel_size + kh * k_w + kw];
-                                }
-                            }
-                        }
-                    }
-                    y->data[b * out_c * out_h * out_w + oc * out_h * out_w + oh * out_w + ow] += sum;
-                }
-            }
-        }
+        float* img = x->data + (b * in_c * in_h * in_w);
+        im2col(img, in_c, in_h, in_w, k_h, stride, padding, col);
+        float* w = weight->data;
+        float* out = y->data + (b * out_c * out_h * out_w);
+        // MatMul-Based Convolution
+        MiCo_MatMul_f32(out, w, col, out_c, in_c*kernel_size, out_h*out_w);
     }
-
+    free(col);
 }
