@@ -89,7 +89,7 @@ void MiCo_print_tensor4d_f32(const Tensor4D_F32 *x);
 
 // MatMul Functions
 void MiCo_MatMul_f32(float* y, const float* x, const float* w, 
-    const size_t n, const size_t k, const size_t m);
+    const size_t m, const size_t n, const size_t p);
 
 // Test Functions
 void MiCo_assert(const int condition, const char *message);
@@ -100,5 +100,7 @@ float im2col_get_pixel(float *im, int height, int width,
 void im2col(float *data_im,
      int channels,  int height,  int width,
      int ksize,  int stride, int pad, float *data_col);
-    
+void im2col_T(float *data_im,
+     int channels,  int height,  int width,
+     int ksize,  int stride, int pad, float *data_col);
 #endif // __NN_H

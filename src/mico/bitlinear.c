@@ -34,7 +34,9 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         MiCo_2D_FP32toQ8(&qx, x);
         
         int32_t* qO = malloc(b*m*sizeof(int32_t));
-        
+        for (size_t i = 0; i < b * m; i++) {
+            qO[i] = 0;
+        }
         // MatMul Computation
         MiCo_Q8_MatMul(qO, &qx, weight);
 

@@ -10,12 +10,10 @@ __attribute__((weak)) void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, cons
 
     for (size_t i = 0; i < batch_size; i++) {
         for (size_t j = 0; j < out_features; j++) {
-            int32_t sum = 0;
             for (size_t k = 0; k < in_features; k++) {
-                sum += x->data[i * in_features + k] * \
+                O[i * out_features + j] += x->data[i * in_features + k] * \
                     w->data[j * in_features + k];
             }
-            O[i * out_features + j] = sum;
         }
     }
 }
