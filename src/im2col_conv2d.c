@@ -43,7 +43,7 @@ void MiCo_im2col_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     float* col = malloc(in_c*kernel_size*out_h*out_w*sizeof(float));
     for (size_t b = 0; b < batch_size; b++){
         float* img = x->data + (b * in_c * in_h * in_w);
-        im2col(img, in_c, in_h, in_w, k_h, stride, padding, col);
+        im2col_T(img, in_c, in_h, in_w, k_h, stride, padding, col);
         float* w = weight->data;
         float* out = y->data + (b * out_c * out_h * out_w);
         // MatMul-Based Convolution

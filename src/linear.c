@@ -25,13 +25,6 @@ __attribute__((weak)) void MiCo_linear_f32(
         }
     }
 
-    for (size_t i = 0; i < batch_size; i++) {
-        for (size_t j = 0; j < out_features; j++) {
-            float sum = 0.f;
-            for (size_t k = 0; k < in_features; k++) {
-                sum += x->data[i * in_features + k] * weight->data[j * in_features + k];
-            }
-            y->data[i * out_features + j] += sum;
-        }
-    }
+    MiCo_MatMul_f32(y->data, x->data, weight->data, 
+        batch_size, in_features, out_features);
 }
