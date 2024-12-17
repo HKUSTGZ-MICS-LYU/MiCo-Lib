@@ -15,7 +15,7 @@ float __FP32toQ8(int8_t* qx, float* x, size_t n){
     for (int i = 0; i < n; i++){
         qx[i] = (int8_t)(x[i] * scale);
     }
-    return scale;
+    return 1.0 / scale;
 }
 
 void MiCo_2D_FP32toQ8(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){

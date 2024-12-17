@@ -43,8 +43,7 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         // Re-Quantization
         for (size_t i = 0; i < b; i++) {
             for (size_t j = 0; j < m; j++) {
-                y->data[i * m + j] += (float)qO[i * m + j] \
-                    * weight->scale * qx.scale;
+                y->data[i * m + j] += (float)qO[i * m + j] * weight->scale * qx.scale;
             }
         }
 

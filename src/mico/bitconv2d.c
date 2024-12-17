@@ -49,12 +49,11 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     float* col = malloc(in_c*kernel_size*out_h*out_w*sizeof(float));
     int32_t *qO = malloc(out_c*out_size*sizeof(int32_t));
     int8_t* qx_data = malloc(in_c*kernel_size*out_h*out_w*sizeof(int8_t));
-
     for (size_t b = 0; b < batch_size; b++){
         float* img = x->data + (b * in_c * in_h * in_w);
         im2col_T(img, in_c, in_h, in_w, k_h, stride, padding, col);
 
-        float qs = __FP32toQ8(qx_data, col, in_c*kernel_size*out_h*out_w);
+        float qs = __FP32toQ8(qx_data, col, in_c*kernel_size*out_size);
 
         Tensor2D_Q8 qx;
         qx.data = qx_data;
@@ -77,8 +76,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 
         // Re-Quantization
         for (size_t j = 0; j < out_c*out_size; j++) {
-            y->data[b * out_c * out_size + j] += (float)qO[j] \
-                * weight->scale * qx.scale;
+            y->data[b * out_c * out_size + j] += (float)qO[j] * weight->scale * qx.scale;
         }
     }
     free(qx_data);
