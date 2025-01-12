@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <malloc.h>
-#ifdef RISCV
+#ifdef RISCV_VEXII
 #include "sim_stdlib.h"
 #else
 #include <stdlib.h>
