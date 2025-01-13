@@ -9,7 +9,7 @@ ifeq ($(TARGET), vexii)
 	OBJDUMP = $(RISCV_PREFIX)-objdump
 
 	CFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
-	CFLAGS += -DRISCV_VEXII -DTEST_NUM=1
+	CFLAGS += -DRISCV_VEXII -DTEST_NUM=$(TEST_NUM)
 	CFLAGS += -fno-common -fno-inline
 	CFLAGS += -Wno-implicit-int -Wno-implicit-function-declaration
 	CFLAGS += -I${VEXII_PATH}/ -I${VEXII_PATH}/driver

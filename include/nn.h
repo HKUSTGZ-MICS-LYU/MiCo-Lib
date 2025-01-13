@@ -6,6 +6,7 @@
 #ifdef RISCV_VEXII
 #include "sim_stdlib.h"
 #else
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #endif
