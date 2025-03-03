@@ -24,7 +24,7 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
       }
     }
 
-    if (aq == 8 && wq == 8){
+    if (aq == 8){
         Tensor2D_Q8 qx;
         qx.shape[0] = b;
         qx.shape[1] = n;
@@ -37,8 +37,20 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         for (size_t i = 0; i < b * m; i++) {
             qO[i] = 0;
         }
-        // MatMul Computation
-        MiCo_Q8_MatMul(qO, &qx, weight);
+
+        switch (wq)
+        {
+        case 8:
+          // MatMul Computation
+          MiCo_Q8_MatMul(qO, &qx, weight);
+          break;
+        case 4:
+          MiCo_Q8x4_MatMul(qO, &qx, weight);
+          break;
+        default:
+          printf("[Warning] Unsupported Weight Quantization\n");
+          break;
+        }
 
         // Re-Quantization
         for (size_t i = 0; i < b; i++) {

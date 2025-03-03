@@ -13,6 +13,7 @@
 #include "nn.h"
 #include "qtypes.h"
 
+// TODO: Here Q8 is used for any bit-width like 8, 4, 2, 1. Alter it later.
 typedef struct {
     int8_t *data;
     float scale;
