@@ -1,6 +1,5 @@
 #include "mico_qnn.h"
 
-#define SIGN_EXTEND_TO_INT8(x, n) ((int8_t)((x) << (8-(n))) >> (8-(n)))
 
 // Baseline Implementation of MatMuls
 // This is the most intensive kernel that you may want to optimize
@@ -48,7 +47,6 @@ __attribute__((weak)) void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     }
 }
 
-#define AMUX_2BIT(w, a) (w==1? a : (w==2? -(a << 1) : (w==3? -a : 0)))
 __attribute__((weak)) void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -71,8 +69,6 @@ __attribute__((weak)) void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     }
 }
 
-#define AMUX_1BIT(w, a) ((w)? -(a) : (a))
-#define EXTRACT_BIT(w, i) (((w) >> (i)) & 0x01)
 __attribute__((weak)) void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
