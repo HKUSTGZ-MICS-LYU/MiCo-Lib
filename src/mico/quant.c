@@ -1,6 +1,6 @@
 #include "mico_quant.h"
 
-float __FP32toQ8(int8_t* qx, float* x, size_t n){
+float __FP32toQ8(qbyte* qx, float* x, size_t n){
     float absmax = 0.0;
     for (int i = 0; i < n; i++){
         float val = x[i];

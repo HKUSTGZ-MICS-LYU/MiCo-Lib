@@ -48,6 +48,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     
     float* col = malloc(in_c*kernel_size*out_h*out_w*sizeof(float));
     int32_t *qO = malloc(out_c*out_size*sizeof(int32_t));
+    // TODO: Adapt to Different Presicion
     int8_t* qx_data = malloc(in_c*kernel_size*out_h*out_w*sizeof(int8_t));
     for (size_t b = 0; b < batch_size; b++){
         float* img = x->data + (b * in_c * in_h * in_w);

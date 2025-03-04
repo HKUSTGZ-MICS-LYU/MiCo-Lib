@@ -24,32 +24,46 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
       }
     }
 
-    if (aq == 8){
-        Tensor2D_Q8 qx;
-        qx.shape[0] = b;
-        qx.shape[1] = n;
-        
-        // Activation Quantization
+    int32_t* qO = malloc(b*m*sizeof(int32_t));
+    for (size_t i = 0; i < b * m; i++) {
+        qO[i] = 0;
+    }
+
+    // Activation Quantization
+    Tensor2D_Q8 qx;
+    qx.shape[0] = b;
+    qx.shape[1] = n;
+    switch (aq)
+    {
+      case 8:
         qx.data = malloc(b*n*sizeof(int8_t));
         MiCo_2D_FP32toQ8(&qx, x);
-        
-        int32_t* qO = malloc(b*m*sizeof(int32_t));
-        for (size_t i = 0; i < b * m; i++) {
-            qO[i] = 0;
-        }
+        break;
+      default:
+        printf("[Warning] Unsupported Weight Quantization - %d\n", aq);
+        break;
+    }
 
+    // TODO: should have a better way to handle Qa/Qw combinations
+    if (aq == 8){        
         switch (wq)
         {
-        case 8:
-          // MatMul Computation
-          MiCo_Q8_MatMul(qO, &qx, weight);
-          break;
-        case 4:
-          MiCo_Q8x4_MatMul(qO, &qx, weight);
-          break;
-        default:
-          printf("[Warning] Unsupported Weight Quantization\n");
-          break;
+          case 8:
+            // MatMul Computation
+            MiCo_Q8_MatMul(qO, &qx, weight);
+            break;
+          case 4:
+            MiCo_Q8x4_MatMul(qO, &qx, weight);
+            break;
+          case 2:
+            MiCo_Q8x2_MatMul(qO, &qx, weight);
+            break;
+          case 1:
+            MiCo_Q8x1_MatMul(qO, &qx, weight);
+            break;
+          default:
+            printf("[Warning] Unsupported Weight Quantization - %d\n", wq);
+            break;
         }
 
         // Re-Quantization
