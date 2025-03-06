@@ -3,9 +3,30 @@
 #include "mico_qnn.h"
 #include "mico_quant.h"
 
+typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
+
+static MatMulFunc MiCo_QMatMul[4][4] = {
+  {NULL, NULL, NULL, NULL},
+  {NULL, NULL, NULL, NULL},
+  {NULL, NULL, NULL, NULL},
+  {MiCo_Q8x1_MatMul, MiCo_Q8x2_MatMul, MiCo_Q8x4_MatMul, MiCo_Q8_MatMul},
+};
+
+static int qlog(qtype x){
+    int result = 0;
+    while (x >>= 1) result++;
+    return result;
+}
+
 void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
     const qtype wq, const qtype aq){
+
+    // Check qtype legality
+    if (wq > 8 || aq > 8){
+        printf("[Error] Unsupported Quantization Type\n");
+        return;
+    }
 
     const size_t b = x->shape[0];
     const size_t n = x->shape[1];
@@ -44,37 +65,17 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         break;
     }
 
-    // TODO: should have a better way to handle Qa/Qw combinations
-    if (aq == 8){        
-        switch (wq)
-        {
-          case 8:
-            // MatMul Computation
-            MiCo_Q8_MatMul(qO, &qx, weight);
-            break;
-          case 4:
-            MiCo_Q8x4_MatMul(qO, &qx, weight);
-            break;
-          case 2:
-            MiCo_Q8x2_MatMul(qO, &qx, weight);
-            break;
-          case 1:
-            MiCo_Q8x1_MatMul(qO, &qx, weight);
-            break;
-          default:
-            printf("[Warning] Unsupported Weight Quantization - %d\n", wq);
-            break;
-        }
-
-        // Re-Quantization
-        for (size_t i = 0; i < b; i++) {
-            for (size_t j = 0; j < m; j++) {
-                y->data[i * m + j] += (float)qO[i * m + j] * weight->scale * qx.scale;
-            }
-        }
-
-        // Free Quantized Memory
-        free(qx.data);
-        free(qO);
+    // TODO: Maybe we should use Enum for aq and wq, so that we can skip qlog
+    MiCo_QMatMul[qlog(aq)][qlog(wq)](qO, &qx, weight);
+  
+    // Re-Quantization
+    for (size_t i = 0; i < b; i++) {
+      for (size_t j = 0; j < m; j++) {
+          y->data[i * m + j] += (float)qO[i * m + j] * weight->scale * qx.scale;
+      }
     }
+
+    // Free Quantized Memory
+    free(qx.data);
+    free(qO);
 }
