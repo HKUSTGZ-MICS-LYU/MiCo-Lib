@@ -85,3 +85,14 @@ void MiCo_maxpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
         }
     }
 }
+
+void MiCo_adaptive_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const size_t s){
+
+    // Infer Pooling Kernel Size
+    MiCo_assert(x->shape[2] == x->shape[3], 
+        "[AdaptiveAvgPool2D] Invalid Input, H =/= W!");
+    size_t input_size = x->shape[2];
+    size_t k_size = input_size - s + 1;
+    MiCo_avgpool4d_f32(y, x, k_size, 1);
+}

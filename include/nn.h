@@ -66,22 +66,35 @@ void MiCo_im2col_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const Tensor4D_F32* weight, const Tensor1D_F32* bias, 
     const size_t stride, const size_t padding, const size_t dilation, const size_t groups);
 
+// Adding Functions
+void MiCo_add2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 *x2);
+void MiCo_add4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x1, const Tensor4D_F32 *x2);
+
 // Pooling Functions
 void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t k_size, const size_t stride);
 void MiCo_maxpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t k_size, const size_t stride);
+void MiCo_adaptive_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const size_t s);
 
 // ReLU Functions
 void MiCo_relu2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x);
 void MiCo_relu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
 void MiCo_relu4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x);
 
+void MiCo_relu62d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x);
+void MiCo_relu64d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x);
+
 // Flatten Functions
 void MiCo_flatten2d_f32(Tensor2D_F32 *y, const Tensor4D_F32 *x);
 
 // Arg Functions
 void MiCo_argmax2d_f32(size_t *idx, const Tensor2D_F32 *x);
+
+// BatchNorm Functions
+// TODO: Not Implemented
+void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const float eps);
 
 // Utility Functions
 void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);

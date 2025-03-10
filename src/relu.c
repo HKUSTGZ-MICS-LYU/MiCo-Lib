@@ -21,3 +21,20 @@ void MiCo_relu4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x){
     y->data[i] = x_val > 0 ? x_val : 0;
   }
 }
+
+// ReLU 6
+void MiCo_relu62d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x){
+  const size_t n = y->shape[0] * y->shape[1];
+  for (size_t i = 0; i < n; i += 1) {
+    float x_val = x->data[i];
+    y->data[i] = x_val > 0 ? (x_val > 6 ? 6 : x_val) : 0;
+  }
+}
+
+void MiCo_relu64d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x){
+  const size_t n = y->shape[0] * y->shape[1] * y->shape[2] * y->shape[3];
+  for (size_t i = 0; i < n; i += 1) {
+    float x_val = x->data[i];
+    y->data[i] = x_val > 0 ? (x_val > 6 ? 6 : x_val) : 0;
+  }
+}
