@@ -6,9 +6,9 @@
 typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
 
 static MatMulFunc MiCo_QMatMul[4][4] = {
-  {NULL, NULL, NULL, NULL},
-  {NULL, NULL, NULL, NULL},
-  {NULL, NULL, NULL, NULL},
+  {MiCo_Q1_MatMul, NULL, NULL, NULL},
+  {NULL, MiCo_Q2_MatMul, NULL, NULL},
+  {NULL, NULL, MiCo_Q4_MatMul, NULL},
   {MiCo_Q8x1_MatMul, MiCo_Q8x2_MatMul, MiCo_Q8x4_MatMul, MiCo_Q8_MatMul},
 };
 
@@ -59,6 +59,18 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
       case 8:
         qx.data = malloc(b*n*sizeof(int8_t));
         MiCo_2D_FP32toQ8(&qx, x);
+        break;
+      case 4:
+        qx.data = malloc(b*n*sizeof(int8_t)/2);
+        MiCo_2D_FP32toQ4(&qx, x);
+        break;
+      case 2:
+        qx.data = malloc(b*n*sizeof(int8_t)/4);
+        MiCo_2D_FP32toQ2(&qx, x);
+        break;
+      case 1:
+        qx.data = malloc(b*n*sizeof(int8_t)/8);
+        MiCo_2D_FP32toQ1(&qx, x);
         break;
       default:
         printf("[Warning] Unsupported Weight Quantization - %d\n", aq);

@@ -10,10 +10,11 @@ int{bW} qW[N,M];            // INT Quantized Weight
 float   sW;                 // Quantized Weight Scale
 
 float B[M];
-
+-----------------------------------------------------------
 # Export Time
 qW, sW = Quantize(W, bW);   // Weight Quantization
 
+-----------------------------------------------------------
 # Inference Time
 float   X[N];               // FP32 Activation
 int{bX} qX[N];              // INT Quantized Activation

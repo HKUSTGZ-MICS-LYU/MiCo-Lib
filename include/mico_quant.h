@@ -22,4 +22,8 @@ float __FP32toQ8(qbyte* qx, float* x, size_t n);
 float __FP32toQ4(qbyte* qx, float* x, size_t n);
 float __FP32toQ2(qbyte* qx, float* x, size_t n);
 float __FP32toQ1(qbyte* qx, float* x, size_t n);
+
+#define CLAMP(x, l, h) ((x) < (l) ? (l) : ((x) > (h) ? (h) : (x)))
+#define CLAMP_INT2(x) CLAMP(x, -2, 1)
+
 #endif // __MICO_QUANT_H

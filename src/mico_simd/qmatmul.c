@@ -11,8 +11,7 @@ void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t out_features = w->shape[0];
 
     // Check if it is possible to unroll
-
-    if(in_features % 4 == 0){
+    if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_v4s8_vecXmat(
                 (qword*)(x->data+i*in_features), 
@@ -45,7 +44,7 @@ void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_w;
     int32_t acc;
 
-    if(in_features % 8 == 0){
+    if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed8x4_vecXmat(
                 (qword*)(x->data+i*in_features), 
@@ -80,7 +79,7 @@ void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     int8_t temp_w;
     int32_t acc;
-    if(in_features % 16 == 0){
+    if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed8x2_vecXmat(
                 (qword*)(x->data+i*in_features), 
