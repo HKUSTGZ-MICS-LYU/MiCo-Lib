@@ -7,8 +7,8 @@ typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
 
 static MatMulFunc MiCo_QMatMul[4][4] = {
   {MiCo_Q1_MatMul, NULL, NULL, NULL},
-  {NULL, MiCo_Q2_MatMul, NULL, NULL},
-  {NULL, NULL, MiCo_Q4_MatMul, NULL},
+  {MiCo_Q2x1_MatMul, MiCo_Q2_MatMul, NULL, NULL},
+  {MiCo_Q4x1_MatMul, MiCo_Q4x2_MatMul, MiCo_Q4_MatMul, NULL},
   {MiCo_Q8x1_MatMul, MiCo_Q8x2_MatMul, MiCo_Q8x4_MatMul, MiCo_Q8_MatMul},
 };
 
