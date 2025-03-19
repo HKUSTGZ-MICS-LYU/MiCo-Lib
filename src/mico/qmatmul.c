@@ -23,6 +23,7 @@ __attribute__((weak)) void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, cons
     }
 }
 
+// TODO: Currently, bit extraction is based on `k`, it fails when in_features is odd
 __attribute__((weak)) void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];

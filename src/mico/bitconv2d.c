@@ -6,11 +6,17 @@
 typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
 
 static MatMulFunc MiCo_QMatMul[4][4] = {
-  {MiCo_Q1_MatMul, NULL, NULL, NULL},
-  {MiCo_Q2x1_MatMul, MiCo_Q2_MatMul, NULL, NULL},
-  {MiCo_Q4x1_MatMul, MiCo_Q4x2_MatMul, MiCo_Q4_MatMul, NULL},
+  {MiCo_Q1_MatMul,   MiCo_Q1x2_MatMul, MiCo_Q1x4_MatMul, MiCo_Q1x8_MatMul},
+  {MiCo_Q2x1_MatMul, MiCo_Q2_MatMul,   MiCo_Q2x4_MatMul, MiCo_Q2x8_MatMul},
+  {MiCo_Q4x1_MatMul, MiCo_Q4x2_MatMul, MiCo_Q4_MatMul,   MiCo_Q4x8_MatMul},
   {MiCo_Q8x1_MatMul, MiCo_Q8x2_MatMul, MiCo_Q8x4_MatMul, MiCo_Q8_MatMul},
 };
+
+static int qlog(qtype x){
+    int result = 0;
+    while (x >>= 1) result++;
+    return result;
+}
 
 void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const Tensor4D_Q8 *weight, const Tensor1D_F32 *bias, 
@@ -61,6 +67,13 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
         }
     }
     
+    // Check if Need Alignment Padding
+    // TODO: Further adjustment on both Activation and Weight
+    size_t aligned_size = in_c_per_group * kernel_size;
+    if (in_c_per_group * kernel_size % 32 != 0){
+        aligned_size = (in_c_per_group * kernel_size / 32 + 1) * 32;
+    }
+
     float* col = malloc(in_c_per_group * kernel_size * out_h * out_w * sizeof(float));
     int32_t *qO = malloc(out_c_per_group * out_size * sizeof(int32_t));
 
@@ -76,7 +89,6 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             // Perform im2col on the current group
             im2col_T(img_group, in_c_per_group, in_h, in_w, k_h, stride, padding, col);
 
-            // TODO: Adapt to Different Presicion
             float qs;
             switch (aq)
             {
@@ -115,9 +127,11 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             for(int i = 0; i < out_c_per_group * out_size; i++){
                 qO[i] = 0;
             }
-
+            printf("Im2Col MatMul Shape: %ldx%ldx%ld\n",\
+                qw.shape[0], qw.shape[1], qx.shape[0]);
             // MatMul-Based Convolution for the current group
-            MiCo_Q8_MatMul(qO, &qw, &qx);
+            // TODO: Need Alignment!
+            MiCo_QMatMul[qlog(wq)][qlog(aq)](qO, &qw, &qx);
 
             // Re-Quantization for the current group
             for (size_t j = 0; j < out_c_per_group * out_size; j++) {
