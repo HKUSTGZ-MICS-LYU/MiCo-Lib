@@ -1,7 +1,10 @@
 #include "nn.h"
+#include "profile.h"
 #include "mico_nn.h"
 #include "mico_qnn.h"
 #include "mico_quant.h"
+
+long QMATMUL_TIMER = 0;
 
 typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
 
@@ -78,7 +81,9 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     }
 
     // TODO: Maybe we should use Enum for aq and wq, so that we can skip qlog
+    long start = MiCo_time();
     MiCo_QMatMul[qlog(aq)][qlog(wq)](qO, &qx, weight);
+    QMATMUL_TIMER += MiCo_time() - start;
   
     // Re-Quantization
     for (size_t i = 0; i < b; i++) {
