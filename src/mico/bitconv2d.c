@@ -3,6 +3,10 @@
 #include "mico_qnn.h"
 #include "mico_quant.h"
 
+extern long QMATMUL_TIMER;
+extern long QUANT_TIMER;
+extern long IM2COL_TIMER;
+
 typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
 
 static MatMulFunc MiCo_QMatMul[4][4] = {
@@ -50,6 +54,10 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     size_t in_c_per_group = in_c / groups;
     size_t out_c_per_group = out_c / groups;
 
+    size_t b_addr, c_addr, h_addr, w_addr;
+
+    long start; // Profiler
+
     // Initialize Output Tensor
     if (bias->shape[0] == 0){
         for (size_t i = 0; i < batch_size * out_c * out_h * out_w; i++) {
@@ -57,10 +65,13 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
         }
     } else {
         for (size_t i = 0; i < batch_size; i++) {
+            b_addr = i * out_c * out_h * out_w;
             for (size_t j = 0; j < out_c; j++) {
+                c_addr = b_addr + j * out_h * out_w;
                 for (size_t k = 0; k < out_h; k++) {
+                    h_addr = c_addr + k * out_w;
                     for (size_t l = 0; l < out_w; l++) {
-                        y->data[i * out_c * out_h * out_w + j * out_h * out_w + k * out_w + l] = bias->data[j];
+                        y->data[h_addr + l] = bias->data[j];
                     }
                 }
             }
@@ -85,10 +96,11 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
         for (size_t g = 0; g < groups; g++) {
             // Get the input data for the current group
             float* img_group = x->data + (b * in_c * in_h * in_w) + (g * in_c_per_group * in_h * in_w);
-
+            start = MiCo_time();
             // Perform im2col on the current group
             im2col_T(img_group, in_c_per_group, in_h, in_w, k_h, stride, padding, col);
-
+            IM2COL_TIMER += MiCo_time() - start;
+            start = MiCo_time();
             float qs;
             switch (aq)
             {
@@ -108,8 +120,8 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                     printf("[Warning] Unsupported Weight Quantization - %d\n", aq);
                 break;
             }
-
-
+            QUANT_TIMER += MiCo_time() - start;
+            
             Tensor2D_Q8 qx;
             qx.data = qx_data;
             qx.shape[0] = out_size;
@@ -131,12 +143,18 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 qw.shape[0], qw.shape[1], qx.shape[0]);
             // MatMul-Based Convolution for the current group
             // TODO: Need Alignment!
+            start = MiCo_time();
             MiCo_QMatMul[qlog(wq)][qlog(aq)](qO, &qw, &qx);
+            QMATMUL_TIMER += MiCo_time() - start;
 
+            size_t group_addr = b * out_c * out_size + (g * out_c_per_group * out_size);
+            float scale = weight->scale * qx.scale;
+            start = MiCo_time();
             // Re-Quantization for the current group
             for (size_t j = 0; j < out_c_per_group * out_size; j++) {
-                y->data[b * out_c * out_size + (g * out_c_per_group * out_size) + j] += (float)qO[j] * weight->scale * qx.scale;
+                y->data[group_addr + j] += (float)qO[j] * scale;
             }
+            QUANT_TIMER += MiCo_time() - start;
         }
     }
     free(qx_data);

@@ -16,8 +16,13 @@ ifeq ($(TARGET), vexii)
 
 	LDFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
 	LDFLAGS += -nostdlib -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(VEXII_LD),-Map,$(BUILD)/$(MAIN).map,--print-memory-usage
-	LDFLAGS += -L./ -nolibc -lm -lc -lgcc
+	LDFLAGS += -L./ -nolibc -lm -lc
 
+	ifeq ($(MARCH), rv32imc)
+		LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
+	else
+		LDFLAGS += -lgcc
+	endif
 	RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 	ifneq ($(filter simd, $(OPT)),)
 		MICO_SOURCES += $(wildcard $(MICO_DIR)/src/mico_simd/*.c)

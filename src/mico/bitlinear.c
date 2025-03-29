@@ -4,10 +4,10 @@
 #include "mico_qnn.h"
 #include "mico_quant.h"
 
-long QMATMUL_TIMER = 0;
+extern long QMATMUL_TIMER;
+extern long QUANT_TIMER;
 
 typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
-
 static MatMulFunc MiCo_QMatMul[4][4] = {
   {MiCo_Q1_MatMul,   MiCo_Q1x2_MatMul, MiCo_Q1x4_MatMul, MiCo_Q1x8_MatMul},
   {MiCo_Q2x1_MatMul, MiCo_Q2_MatMul,   MiCo_Q2x4_MatMul, MiCo_Q2x8_MatMul},
@@ -35,6 +35,9 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const size_t n = x->shape[1];
     const size_t m = weight->shape[0];
 
+    // Address
+    size_t baddr;
+    long start;
     // Initialization
     if (bias->shape[0] == 0){
       for (size_t i = 0; i < b * m; i++) {
@@ -42,8 +45,9 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
       }
     } else {
       for (size_t i = 0; i < b; i++) {
+        baddr = i * m;
         for (size_t j = 0; j < m; j++) {
-          y->data[i * m + j] = bias->data[j];
+          y->data[baddr + j] = bias->data[j];
         }
       }
     }
@@ -57,6 +61,8 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     Tensor2D_Q8 qx;
     qx.shape[0] = b;
     qx.shape[1] = n;
+
+    start = MiCo_time();
     switch (aq)
     {
       case 8:
@@ -79,19 +85,23 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         printf("[Warning] Unsupported Weight Quantization - %d\n", aq);
         break;
     }
-
+    QUANT_TIMER += MiCo_time() - start;
+    
     // TODO: Maybe we should use Enum for aq and wq, so that we can skip qlog
-    long start = MiCo_time();
+    start = MiCo_time();
     MiCo_QMatMul[qlog(aq)][qlog(wq)](qO, &qx, weight);
     QMATMUL_TIMER += MiCo_time() - start;
-  
+    
+    float scale = weight->scale * qx.scale;
     // Re-Quantization
+    start = MiCo_time();
     for (size_t i = 0; i < b; i++) {
+      baddr = i * m;
       for (size_t j = 0; j < m; j++) {
-          y->data[i * m + j] += (float)qO[i * m + j] * weight->scale * qx.scale;
+          y->data[baddr + j] += (float)qO[baddr + j] * scale;
       }
     }
-
+    QUANT_TIMER += MiCo_time() - start;
     // Free Quantized Memory
     free(qx.data);
     free(qO);

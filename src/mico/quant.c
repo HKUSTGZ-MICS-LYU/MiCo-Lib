@@ -63,6 +63,7 @@ float __FP32toQ2(qbyte* qx, float* x, size_t n){
     // float scale = 1.0 / absmax;
 
     for (int i = 0; i < n; i+=4){
+        // Unrolled 4 Times
         qx[i/4] = (CLAMP_INT2((int8_t)(roundf(x[i] * scale)) & 0x3)) | 
             (CLAMP_INT2(((int8_t)(roundf(x[i+1] * scale)) & 0x3)) << 2) |
             (CLAMP_INT2(((int8_t)(roundf(x[i+2] * scale)) & 0x3)) << 4) |
@@ -92,91 +93,59 @@ float __FP32toQ1(qbyte* qx, float* x, size_t n){
     return scale;
 }
 
-// TODO: Currently batch_size is assumed to be 1, as scale is a scalar
+// Note: Currently, quantization is batch-wise, which may affect the accuracy
 void MiCo_2D_FP32toQ8(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ8(qx->data+b*n*sizeof(int8_t), 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ8(qx->data, x->data, batch_size*n);
 }
 
 void MiCo_4D_FP32toQ8(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ8(qx->data+b*n*sizeof(int8_t), 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ8(qx->data, x->data, batch_size*n);
 }
 
 void MiCo_2D_FP32toQ4(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ4(qx->data+b*n*sizeof(int8_t)/2, 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ4(qx->data, x->data, batch_size*n);
 }
 
 void MiCo_4D_FP32toQ4(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ4(qx->data+b*n*sizeof(int8_t)/2, 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ4(qx->data, x->data, batch_size*n);
 }
 
 void MiCo_2D_FP32toQ2(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ2(qx->data+b*n*sizeof(int8_t)/4, 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ2(qx->data, x->data, batch_size*n);
 }
 
 void MiCo_4D_FP32toQ2(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ2(qx->data+b*n*sizeof(int8_t)/4, 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ2(qx->data, x->data, batch_size*n);
 }
 
 void MiCo_2D_FP32toQ1(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ1(qx->data+b*n*sizeof(int8_t)/8, 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ1(qx->data, x->data, batch_size*n);
 }
 
 void MiCo_4D_FP32toQ1(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
 
-    for (int b = 0; b < batch_size; b++){
-        qx->scale = __FP32toQ1(qx->data+b*n*sizeof(int8_t)/8, 
-            x->data+b*n*sizeof(float), 
-            n);
-    }
+    qx->scale = __FP32toQ1(qx->data, x->data, batch_size*n);
 }
