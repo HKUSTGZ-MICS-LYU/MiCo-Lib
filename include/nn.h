@@ -121,4 +121,14 @@ void im2col(float *data_im,
 void im2col_T(float *data_im,
      int channels,  int height,  int width,
      int ksize,  int stride, int pad, float *data_col);
+
+void im2col_block_T(const float* data_im, const int channels,
+   const int height, const int width, const int kernel_size,
+   const int stride, const int pad, float* data_col,
+   const int row_offset, const int num_rows, const int out_width);
+   
+void im2col_block_T_aligned(const float* data_im, const int channels,
+    const int height, const int width, const int kernel_size,
+    const int stride, const int pad, float* data_col,
+    const int row_offset, const int num_rows, const int out_width);
 #endif // __NN_H

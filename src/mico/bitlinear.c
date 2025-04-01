@@ -57,28 +57,31 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         qO[i] = 0;
     }
 
+    const size_t align_factor = 32;
+
+    const size_t aligned_size = (n + align_factor - 1) / align_factor * align_factor;
     // Activation Quantization
     Tensor2D_Q8 qx;
     qx.shape[0] = b;
-    qx.shape[1] = n;
+    qx.shape[1] = aligned_size;
 
     start = MiCo_time();
     switch (aq)
     {
       case 8:
-        qx.data = malloc(b*n*sizeof(int8_t));
+        qx.data = malloc(b*aligned_size*sizeof(int8_t));
         MiCo_2D_FP32toQ8(&qx, x);
         break;
       case 4:
-        qx.data = malloc(b*n*sizeof(int8_t)/2);
+        qx.data = malloc(b*aligned_size*sizeof(int8_t)/2);
         MiCo_2D_FP32toQ4(&qx, x);
         break;
       case 2:
-        qx.data = malloc(b*n*sizeof(int8_t)/4);
+        qx.data = malloc(b*aligned_size*sizeof(int8_t)/4);
         MiCo_2D_FP32toQ2(&qx, x);
         break;
       case 1:
-        qx.data = malloc(b*n*sizeof(int8_t)/8);
+        qx.data = malloc(b*aligned_size*sizeof(int8_t)/8);
         MiCo_2D_FP32toQ1(&qx, x);
         break;
       default:
@@ -86,12 +89,14 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         break;
     }
     QUANT_TIMER += MiCo_time() - start;
-    
+    // printf("Quant Speed: %ld\n", MiCo_time() - start);
+
     // TODO: Maybe we should use Enum for aq and wq, so that we can skip qlog
     start = MiCo_time();
     MiCo_QMatMul[qlog(aq)][qlog(wq)](qO, &qx, weight);
     QMATMUL_TIMER += MiCo_time() - start;
-    
+    // printf("MatMul Speed: %ld\n", MiCo_time() - start);
+
     float scale = weight->scale * qx.scale;
     // Re-Quantization
     start = MiCo_time();
@@ -102,6 +107,8 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
       }
     }
     QUANT_TIMER += MiCo_time() - start;
+    // printf("DeQuant Speed: %ld\n", MiCo_time() - start);
+    // printf("DeQuant Scale: %.4f\n", scale);
     // Free Quantized Memory
     free(qx.data);
     free(qO);
