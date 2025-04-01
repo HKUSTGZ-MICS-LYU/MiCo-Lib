@@ -42,7 +42,7 @@ void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     int8_t temp_w;
     int32_t acc;
-
+    printf("MiCo_Q8x4_MatMul: in_features = %d, out_features = %d\n", in_features, out_features);
     if(in_features % 8 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed8x4_vecXmat(
@@ -153,7 +153,7 @@ void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 8 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_v8s4_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -194,7 +194,7 @@ void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 16 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed4x2_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -235,7 +235,7 @@ void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed4x1_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -275,7 +275,7 @@ void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 16 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_v16s2_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -315,7 +315,7 @@ void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed2x1_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -355,7 +355,7 @@ void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_v32s1_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -394,11 +394,10 @@ void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     int8_t temp_a;
     int32_t acc;
-
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed4x8_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -433,7 +432,7 @@ void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed2x8_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -469,7 +468,7 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed1x8_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -506,7 +505,7 @@ void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed2x4_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -545,7 +544,7 @@ void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed1x4_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
@@ -583,7 +582,7 @@ void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed1x2_vecXmat(
-                (qword*)(x->data+i*in_features), 
+                (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
