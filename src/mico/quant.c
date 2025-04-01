@@ -2,8 +2,7 @@
 
 #include <math.h>
 
-// TODO: roundf seems heavy here...
-float MiCo_absmax(float* x, size_t n){
+__attribute__((weak)) float MiCo_absmax(float* x, size_t n){
     float absmax = 0.0;
     for (int i = 0; i < n; i++){
         float val = x[i];
@@ -17,7 +16,7 @@ float MiCo_absmax(float* x, size_t n){
     return absmax;
 }
 
-float MiCo_absmean(float* x, size_t n){
+__attribute__((weak)) float MiCo_absmean(float* x, size_t n){
     float absmean = 0;
     for (int i=0; i<n; i++){
         absmean += x[i] > 0 ? x[i] : -x[i];
@@ -26,7 +25,8 @@ float MiCo_absmean(float* x, size_t n){
     return absmean;
 }
 
-float __FP32toQ8(qbyte* qx, float* x, size_t n){
+// TODO: roundf seems heavy here...
+__attribute__((weak)) float __FP32toQ8(qbyte* qx, float* x, size_t n){
     float scale = 127.0 / MiCo_absmax(x, n);
     for (int i = 0; i < n; i++){
         qx[i] = (int8_t)(roundf(x[i] * scale));
@@ -34,7 +34,7 @@ float __FP32toQ8(qbyte* qx, float* x, size_t n){
     return 1.0 / scale;
 }
 
-float __FP32toQ4(qbyte* qx, float* x, size_t n){
+__attribute__((weak)) float __FP32toQ4(qbyte* qx, float* x, size_t n){
     float scale = 7.0 / MiCo_absmax(x, n);
     for (int i = 0; i < n; i+=2){
         qx[i/2] = ((int8_t)(roundf(x[i] * scale)) & 0xF) | 
@@ -43,9 +43,7 @@ float __FP32toQ4(qbyte* qx, float* x, size_t n){
     return 1.0 / scale;
 }
 
-// TODO: If we use padding, we need to make sure that,
-// the padding is not quantized for absmean quantization
-float __FP32toQ2(qbyte* qx, float* x, size_t n){
+__attribute__((weak)) float __FP32toQ2(qbyte* qx, float* x, size_t n){
 
     float scale = 1.0 / MiCo_absmax(x, n);
 
@@ -59,9 +57,7 @@ float __FP32toQ2(qbyte* qx, float* x, size_t n){
     return 1.0 / scale;
 }
 
-// TODO: If we use padding, we need to make sure that,
-// the padding is not quantized for absmean quantization
-float __FP32toQ1(qbyte* qx, float* x, size_t n){
+__attribute__((weak)) float __FP32toQ1(qbyte* qx, float* x, size_t n){
 
     float scale = MiCo_absmean(x, n);
 
@@ -82,7 +78,7 @@ float __FP32toQ1(qbyte* qx, float* x, size_t n){
 // Currently, quantization is batch-wise, which may affect the accuracy.
 // And all the quantization will consider padding, if Q Tensor has larger size.
 // than the original tensor, the extra part will be padded with 0.
-void MiCo_2D_FP32toQ8(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
+__attribute__((weak)) void MiCo_2D_FP32toQ8(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
     size_t qx_b = qx->shape[0];
@@ -104,7 +100,7 @@ void MiCo_2D_FP32toQ8(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     qx->scale = 1.0 / scale;
 }
 
-void MiCo_2D_FP32toQ4(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
+__attribute__((weak)) void MiCo_2D_FP32toQ4(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
     size_t qx_b = qx->shape[0];
@@ -134,7 +130,7 @@ void MiCo_2D_FP32toQ4(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     qx->scale = 1.0 / scale;
 }
 
-void MiCo_2D_FP32toQ2(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
+__attribute__((weak)) void MiCo_2D_FP32toQ2(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
     size_t qx_b = qx->shape[0];
@@ -167,7 +163,7 @@ void MiCo_2D_FP32toQ2(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     qx->scale = 1.0 / scale;
 }
 
-void MiCo_2D_FP32toQ1(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
+__attribute__((weak)) void MiCo_2D_FP32toQ1(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1];
     size_t qx_b = qx->shape[0];
@@ -198,14 +194,14 @@ void MiCo_2D_FP32toQ1(Tensor2D_Q8 *qx, const Tensor2D_F32 *x){
     qx->scale = scale;
 }
 
-void MiCo_4D_FP32toQ8(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
+// TODO: Modify it for the padding
+__attribute__((weak)) void MiCo_4D_FP32toQ8(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
-    // TODO: Modify it for the padding
     qx->scale = __FP32toQ8(qx->data, x->data, batch_size*n);
 }
 
-void MiCo_4D_FP32toQ4(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
+__attribute__((weak)) void MiCo_4D_FP32toQ4(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
 
@@ -213,14 +209,14 @@ void MiCo_4D_FP32toQ4(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
 }
 
 
-void MiCo_4D_FP32toQ2(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
+__attribute__((weak)) void MiCo_4D_FP32toQ2(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
 
     qx->scale = __FP32toQ2(qx->data, x->data, batch_size*n);
 }
 
-void MiCo_4D_FP32toQ1(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
+__attribute__((weak)) void MiCo_4D_FP32toQ1(Tensor4D_Q8 *qx, const Tensor4D_F32 *x){
     size_t batch_size = x->shape[0];
     size_t n = x->shape[1] * x->shape[2] * x->shape[3];
 

@@ -168,10 +168,11 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                     qO[i] = 0;
                 }
                 
-                if (row_offset == 0) {
-                    printf("Im2Col MatMul Shape (block): %ldx%ldx%ld\n", 
-                          qw.shape[0], qw.shape[1], qx.shape[0]);
-                }
+                // Debug Information
+                // if (row_offset == 0) {
+                //     printf("Im2Col MatMul Shape (block): %ldx%ldx%ld\n", 
+                //           qw.shape[0], qw.shape[1], qx.shape[0]);
+                // }
                 
                 // MatMul-Based Convolution for the current block
                 start = MiCo_time();

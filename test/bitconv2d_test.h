@@ -1,7 +1,7 @@
 #define N 1
-#define INC 3
-#define INH 32
-#define INW 32
+#define INC 32
+#define INH 16
+#define INW 16
 
-#define K 5
-#define M 8
+#define K 3
+#define M 64
