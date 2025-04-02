@@ -1,15 +1,23 @@
 VEXII_PATH = $(MICO_DIR)/targets/vexii
-VEXII_LD = $(MICO_DIR)/targets/vexii/vexii.ld
+VEXII_LD = $(MICO_DIR)/targets/vexii/vexii_64mb.ld
 
 MABI?=ilp32
 MARCH?=rv32imc
+
+LARGE_RAM?=
+HEAP_SIZE=4096*1024
+
+ifeq ($(LARGE_RAM), 1)
+	VEXII_LD = $(MICO_DIR)/targets/vexii/vexii_64mb.ld
+	HEAP_SIZE=32*1024*1024
+endif
 
 ifeq ($(TARGET), vexii)
 	CC = $(RISCV_PREFIX)-gcc
 	OBJDUMP = $(RISCV_PREFIX)-objdump
 
 	CFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
-	CFLAGS += -DRISCV_VEXII -DTEST_NUM=$(TEST_NUM)
+	CFLAGS += -DRISCV_VEXII -DTEST_NUM=$(TEST_NUM) -DMAX_HEAP_SIZE=$(HEAP_SIZE)
 	CFLAGS += -fno-common -fno-inline
 	CFLAGS += -Wno-implicit-int -Wno-implicit-function-declaration
 	CFLAGS += -I${VEXII_PATH}/ -I${VEXII_PATH}/driver

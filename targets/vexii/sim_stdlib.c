@@ -280,10 +280,22 @@ void *_sbrk (incr)
     static char * heap_end;
     char *        prev_heap_end;
 
+    #ifndef MAX_HEAP_SIZE
+    #define MAX_HEAP_SIZE (1024 * 1024)  /* Default: 1MB */
+    #endif
+    
     if (heap_end == 0)
       heap_end = & end;
 
     prev_heap_end = heap_end;
+
+    /* Check if allocation would exceed the maximum heap size */
+    if ((heap_end - &end) + incr > MAX_HEAP_SIZE) {
+        printf("WARNING: _sbrk failed to allocate %d bytes - heap usage %ld/%d\n", 
+               incr, (long)(heap_end - &end), MAX_HEAP_SIZE);
+        return (void *)-1;  /* Standard sbrk error return value */
+    }
+
     heap_end += incr;
     #ifdef DEBUG
     printf("sbrk: %d, curr_heap_end: %x, prog_end: %x\n", incr, heap_end, &end);
