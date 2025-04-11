@@ -42,7 +42,6 @@ void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     int8_t temp_w;
     int32_t acc;
-    printf("MiCo_Q8x4_MatMul: in_features = %d, out_features = %d\n", in_features, out_features);
     if(in_features % 8 == 0){
         for (size_t i = 0; i < batch_size; i++) {
             __mico_mixed8x4_vecXmat(
