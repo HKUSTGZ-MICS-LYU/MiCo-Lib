@@ -1,3 +1,3 @@
-#define N 32
-#define M 64
-#define K 32
+#define N 128
+#define M 128
+#define K 128
