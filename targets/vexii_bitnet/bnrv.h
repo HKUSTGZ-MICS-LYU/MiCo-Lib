@@ -75,3 +75,9 @@
 
 #define BNSUM(rd, rs1, rs2) \
 .word (0x0B | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | (0x1 << 12) | (0x0) << 25 );
+
+#define DOTP8(rd, rs1, rs2) \
+.word (0x0B | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | (0x4 << 12) | (0x1) << 25 );
+
+#define DOTP8X2(rd, rs1, rs2) \
+.word (0x0B | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | (0x5 << 12) | (0x1) << 25 );
