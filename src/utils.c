@@ -45,8 +45,3 @@ void MiCo_assert(const int condition, const char *message){
         exit(1);
     }
 }
-
-// TODO: Remove Dummy Implementation
-void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const float eps){
-    MiCo_CONNECT(y,x);
-}

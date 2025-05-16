@@ -15,31 +15,31 @@
 
 // TODO: Here Q8 is used for any bit-width like 8, 4, 2, 1. Alter it later.
 typedef struct {
-    int8_t *data;
+    qbyte *data;
     float scale;
 } Tensor0D_Q8; // Scalar
 
 typedef struct{
     size_t shape[1];
-    int8_t *data;
+    qbyte *data;
     float scale;
 } Tensor1D_Q8; // 1-D Tensor
 
 typedef struct{
     size_t shape[2];
-    int8_t *data;
+    qbyte *data;
     float scale;
 } Tensor2D_Q8; // 2-D Tensor
 
 typedef struct{
     size_t shape[3];
-    int8_t *data;
+    qbyte *data;
     float scale;
 } Tensor3D_Q8; // 3-D Tensor
 
 typedef struct{
     size_t shape[4];
-    int8_t *data;
+    qbyte *data;
     float scale;
 } Tensor4D_Q8; // 3-D Tensor
 

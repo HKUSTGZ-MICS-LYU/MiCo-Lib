@@ -18,7 +18,7 @@ __attribute__((weak)) void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *
     size_t out_h = (in_h + 2 * padding - k_h) / stride + 1;
     size_t out_w = (in_w + 2 * padding - k_w) / stride + 1;
     
-    size_t feature_size = in_h * in_w;
+    // size_t feature_size = in_h * in_w;
     size_t kernel_size = k_h * k_w;
 
     MiCo_assert(out_h == y->shape[2] && out_w == y->shape[3], 

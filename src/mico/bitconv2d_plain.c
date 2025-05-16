@@ -43,7 +43,7 @@ void MiCo_bitconv2d_f32_plain(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     size_t out_h = (in_h + 2 * padding - k_h) / stride + 1;
     size_t out_w = (in_w + 2 * padding - k_w) / stride + 1;
     
-    size_t feature_size = in_h * in_w;
+    // size_t feature_size = in_h * in_w;
     size_t kernel_size = k_h * k_w;
     size_t out_size = out_h * out_w;
 
@@ -56,7 +56,7 @@ void MiCo_bitconv2d_f32_plain(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     size_t in_c_per_group = in_c / groups;
     size_t out_c_per_group = out_c / groups;
 
-    size_t b_addr, c_addr, h_addr, w_addr;
+    size_t b_addr, c_addr, h_addr;
 
     long start; // Profiler
 
@@ -82,17 +82,17 @@ void MiCo_bitconv2d_f32_plain(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     
     // Check if Need Alignment Padding
     // TODO: Further adjustment on both Activation and Weight
-    size_t aligned_size = in_c_per_group * kernel_size;
-    if (in_c_per_group * kernel_size % 32 != 0){
-        aligned_size = (in_c_per_group * kernel_size / 32 + 1) * 32;
-    }
+    // size_t aligned_size = in_c_per_group * kernel_size;
+    // if (in_c_per_group * kernel_size % 32 != 0){
+    //     aligned_size = (in_c_per_group * kernel_size / 32 + 1) * 32;
+    // }
 
     float* col = malloc(in_c_per_group * kernel_size * out_h * out_w * sizeof(float));
     int32_t *qO = malloc(out_c_per_group * out_size * sizeof(int32_t));
 
-    size_t qx_size = in_c_per_group * kernel_size * out_h * out_w * sizeof(int8_t);
+    size_t qx_size = in_c_per_group * kernel_size * out_h * out_w * sizeof(qbyte);
     qx_size /= (8 / aq); // Num of Act per Byte
-    int8_t* qx_data = malloc(qx_size);
+    qbyte* qx_data = malloc(qx_size);
 
     for (size_t b = 0; b < batch_size; b++){
         for (size_t g = 0; g < groups; g++) {
@@ -103,7 +103,7 @@ void MiCo_bitconv2d_f32_plain(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             im2col_T(img_group, in_c_per_group, in_h, in_w, k_h, stride, padding, col);
             IM2COL_TIMER += MiCo_time() - start;
             start = MiCo_time();
-            float qs;
+            float qs = 0.0;
             switch (aq)
             {
                 case 8:

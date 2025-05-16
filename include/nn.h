@@ -70,6 +70,9 @@ void MiCo_im2col_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 void MiCo_add2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 *x2);
 void MiCo_add4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x1, const Tensor4D_F32 *x2);
 
+// Multiply Functions
+void MiCo_mul2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 *x2);
+
 // Pooling Functions
 void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t k_size, const size_t stride);
@@ -99,6 +102,10 @@ void MiCo_argmax2d_f32(size_t *idx, const Tensor2D_F32 *x);
 // BatchNorm Functions
 // TODO: Not Implemented
 void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const float eps);
+
+// Simple RMSNorm Functions
+void MiCo_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
+    const Tensor1D_F32 *weight, const float eps);
 
 // Utility Functions
 void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);

@@ -14,6 +14,7 @@ void MiCo_add4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x1, const Tensor4D_F32 
         }
     }
 }
+
 void MiCo_add2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 *x2){
 
     MiCo_assert(x1->shape[1] == x2->shape[1], "[Add2D] Size Mismatched!");

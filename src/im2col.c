@@ -67,7 +67,7 @@ void im2col_block_T(const float* data_im, const int channels,
                    const int stride, const int pad, float* data_col,
                    const int row_offset, const int num_rows, const int out_width) {
     
-    const int height_col = (height + 2 * pad - kernel_size) / stride + 1;
+    // const int height_col = (height + 2 * pad - kernel_size) / stride + 1;
     const int width_col = (width + 2 * pad - kernel_size) / stride + 1;
     const int channels_col = channels * kernel_size * kernel_size;
     
@@ -104,7 +104,7 @@ void im2col_block_T_aligned(const float* data_im, const int channels,
                    const int stride, const int pad, float* data_col,
                    const int row_offset, const int num_rows, const int out_width) {
     
-    const int height_col = (height + 2 * pad - kernel_size) / stride + 1;
+    // const int height_col = (height + 2 * pad - kernel_size) / stride + 1;
     const int width_col = (width + 2 * pad - kernel_size) / stride + 1;
     const int channels_col = channels * kernel_size * kernel_size;
     
