@@ -32,9 +32,6 @@ int sprintf(char *str, const char *format, ... );
 // void* memcpy(void *dest, const void *src, size_t count);
 // void* memset( void *dest, int ch, size_t count );
 
-// llama2 specific tokscanf
-int tokscanf(const char* piece, unsigned char* byte_val);
-
 // stdlib.h
 // void* malloc( size_t size );
 // void* calloc( size_t num, size_t size );

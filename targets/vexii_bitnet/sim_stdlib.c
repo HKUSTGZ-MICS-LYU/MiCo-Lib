@@ -189,18 +189,6 @@ static int hex2int(char c){
     return 0;
 }
 
-// llama2 tokenizer
-int tokscanf(const char* piece, unsigned char* byte_val){
-    // const char* pat = "<0x00>";
-    if (piece[0] != '<' || piece[1] != '0' || piece[2] != 'x' || piece[5] != '>'){
-        return 0;
-    }
-    char h = piece[3];
-    char l = piece[4];
-    // convert the hex char to int
-    *byte_val = (hex2int(h) << 4) | hex2int(l);
-    return 1;
-}
 //See https://github.com/zephyrproject-rtos/meta-zephyr-sdk/issues/110
 //It does not interfere with the benchmark code.
 unsigned long long __divdi3 (unsigned long long numerator,unsigned  long long divisor)

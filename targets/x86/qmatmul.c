@@ -5,7 +5,7 @@
 
 // Helper functions for bit extraction
 static inline __m256i extract_1bit_values(const int8_t* data, size_t base_idx, size_t count) {
-    __m256i result = _mm256_setzero_si256();
+    // __m256i result = _mm256_setzero_si256();
     int8_t extracted[32];
     
     for (size_t i = 0; i < count; i++) {
@@ -21,7 +21,7 @@ static inline __m256i extract_1bit_values(const int8_t* data, size_t base_idx, s
 }
 
 static inline __m256i extract_2bit_values(const int8_t* data, size_t base_idx, size_t count) {
-    __m256i result = _mm256_setzero_si256();
+    // __m256i result = _mm256_setzero_si256();
     int8_t extracted[32];
 
     for (size_t i = 0; i < count; i++) {
@@ -39,7 +39,7 @@ static inline __m256i extract_2bit_values(const int8_t* data, size_t base_idx, s
 }
 
 static inline __m256i extract_4bit_values(const int8_t* data, size_t base_idx, size_t count) {
-    __m256i result = _mm256_setzero_si256();
+    // __m256i result = _mm256_setzero_si256();
     int8_t extracted[32];
     
 
@@ -673,8 +673,8 @@ void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t out_features = w->shape[0];
     
     // Process 64 inputs at a time (since 1-bit operations are very efficient)
-    const size_t vec_size = 64;
-    const size_t aligned_features = (in_features / vec_size) * vec_size;
+    // const size_t vec_size = 64;
+    // const size_t aligned_features = (in_features / vec_size) * vec_size;
     
     for (size_t i = 0; i < batch_size; i++) {
         for (size_t j = 0; j < out_features; j++) {

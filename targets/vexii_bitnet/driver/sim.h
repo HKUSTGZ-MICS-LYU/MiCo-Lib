@@ -14,6 +14,7 @@ static int sim_puts(char *c){
     while(*c){
         write_u32(*c++, 0x10000000);
     }
+    return 0;
 }
 
 static long __attribute__ ((noinline)) sim_time(){
