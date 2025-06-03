@@ -184,7 +184,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 
                 float scale = weight->scale * qx.scale;
                 start = MiCo_time();
-                // Re-Quantization for the current block
+                // De-Quantization for the current block
                 for (size_t oc = 0; oc < out_c_per_group; oc++) {
                     for (size_t j = 0; j < current_block_out_size; j++) {
                         size_t qo_idx = oc * current_block_out_size + j;

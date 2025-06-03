@@ -26,7 +26,7 @@ int32   qO[M];              // INT Quantized Output
 O = B;                      // Initialize Output with Bias
 qX, sX = Quantize(X, bX);   // Activation Quantization
 qO = qX * qW;               // Integer Vec X Mat Operations
-O += qO * sW * sX;          // Re-Quantization
+O += qO * sW * sX;          // De-Quantization
 ```
 
 ## Conv2D Layer (Im2Col)

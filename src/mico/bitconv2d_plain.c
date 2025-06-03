@@ -152,7 +152,7 @@ void MiCo_bitconv2d_f32_plain(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             size_t group_addr = b * out_c * out_size + (g * out_c_per_group * out_size);
             float scale = weight->scale * qx.scale;
             start = MiCo_time();
-            // Re-Quantization for the current group
+            // De-Quantization for the current group
             for (size_t j = 0; j < out_c_per_group * out_size; j++) {
                 y->data[group_addr + j] += (float)qO[j] * scale;
             }

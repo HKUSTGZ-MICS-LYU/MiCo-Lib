@@ -98,7 +98,7 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     // printf("MatMul Speed: %ld\n", MiCo_time() - start);
 
     float scale = weight->scale * qx.scale;
-    // Re-Quantization
+    // De-Quantization
     start = MiCo_time();
     for (size_t i = 0; i < b; i++) {
       baddr = i * m;
