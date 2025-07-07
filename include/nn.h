@@ -75,9 +75,9 @@ void MiCo_mul2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 
 
 // Pooling Functions
 void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
-    const size_t k_size, const size_t stride);
+    const size_t k_size, const size_t stride, const size_t padding);
 void MiCo_maxpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
-    const size_t k_size, const size_t stride);
+    const size_t k_size, const size_t stride, const size_t padding);
 void MiCo_adaptive_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t s);
 
@@ -108,6 +108,10 @@ void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 // Simple RMSNorm Functions
 void MiCo_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
     const Tensor1D_F32 *weight, const float eps);
+
+// Channel Shuffle Functions (for ShuffleNet)
+void MiCo_channel_shuffle(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+    const size_t channels, const size_t groups);
 
 // Utility Functions
 void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);
