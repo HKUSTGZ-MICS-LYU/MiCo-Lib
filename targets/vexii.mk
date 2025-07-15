@@ -3,6 +3,12 @@ VEXII_LD = $(MICO_DIR)/targets/vexii/vexii.ld
 
 MABI?=ilp32
 MARCH?=rv32imc
+MICO_ASM_DIR?=mico32
+
+# if MARCH contains rv64, change MICO_ASM_DIR to mico64
+ifeq ($(findstring rv64, $(MARCH)), rv64)
+	MICO_ASM_DIR = mico64
+endif
 
 LARGE_RAM?=
 HEAP_SIZE=4096*1024
@@ -34,6 +40,6 @@ ifeq ($(TARGET), vexii)
 	RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 	ifneq ($(filter simd, $(OPT)),)
 		MICO_SOURCES += $(wildcard $(MICO_DIR)/src/mico_simd/*.c)
-		RISCV_SOURCE += $(wildcard ${VEXII_PATH}/mico/*.S)
+		RISCV_SOURCE += $(wildcard ${VEXII_PATH}/$(MICO_ASM_DIR)/*.S)
 	endif
 endif

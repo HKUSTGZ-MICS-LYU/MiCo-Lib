@@ -6,7 +6,7 @@
 
 __attribute__((weak)) long int MiCo_time(){
     #ifdef USE_HOST
-    return clock();
+    return clock() / (CLOCKS_PER_SEC / 1000000); // Convert to ms
     #else
     return 0;
     #endif
