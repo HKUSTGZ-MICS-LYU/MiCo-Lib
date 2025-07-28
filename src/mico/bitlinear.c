@@ -23,7 +23,7 @@ static int qlog(qtype x){
 
 void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
-    const qtype wq, const qtype aq){
+    const qtype wq, const qtype aq, const size_t align){
 
     // Check qtype legality
     if (wq > 8 || aq > 8){
@@ -57,7 +57,7 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         qO[i] = 0;
     }
 
-    const size_t align_factor = 32;
+    const size_t align_factor = align;
 
     const size_t aligned_size = (n + align_factor - 1) / align_factor * align_factor;
     // Activation Quantization

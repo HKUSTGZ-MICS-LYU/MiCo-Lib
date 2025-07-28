@@ -46,13 +46,13 @@ typedef struct{
 // Dense/Linear Functions
 void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
-    const qtype wq, const qtype aq);
+    const qtype wq, const qtype aq, const size_t align);
 
 // Convolution Functions
 void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const Tensor4D_Q8 *weight, const Tensor1D_F32 *bias, 
     const qtype wq, const qtype aq,
     const size_t stride, const size_t padding, 
-    const size_t dilation, const size_t groups);
+    const size_t dilation, const size_t groups, const size_t align);
 
 #endif // __MICO_NN_H

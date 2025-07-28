@@ -23,11 +23,12 @@ static int qlog(qtype x){
     return result;
 }
 
+// TODO: Maybe we have too many arguments here
 void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const Tensor4D_Q8 *weight, const Tensor1D_F32 *bias, 
     const qtype wq, const qtype aq,
     const size_t stride, const size_t padding, 
-    const size_t dilation, const size_t groups){
+    const size_t dilation, const size_t groups, const size_t align){
 
     const size_t batch_size = x->shape[0];
 
@@ -82,7 +83,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     // TODO: Further adjustment on both Activation and Weight
     // Currently we pad the data during the code generation
 
-    const size_t align_factor = 32;
+    const size_t align_factor = align;
 
     size_t aligned_size = in_c_per_group * kernel_size;
     if (in_c_per_group * kernel_size % align_factor != 0){
