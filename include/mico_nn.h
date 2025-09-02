@@ -17,31 +17,36 @@
 typedef struct {
     qbyte *data;
     float scale;
+    qtype wq; // weight quantization bits
 } Tensor0D_Q8; // Scalar
 
 typedef struct{
     size_t shape[1];
     qbyte *data;
     float scale;
+    qtype wq; // weight quantization bits
 } Tensor1D_Q8; // 1-D Tensor
 
 typedef struct{
     size_t shape[2];
     qbyte *data;
     float scale;
+    qtype wq; // weight quantization bits
 } Tensor2D_Q8; // 2-D Tensor
 
 typedef struct{
     size_t shape[3];
     qbyte *data;
     float scale;
+    qtype wq; // weight quantization bits
 } Tensor3D_Q8; // 3-D Tensor
 
 typedef struct{
     size_t shape[4];
     qbyte *data;
     float scale;
-} Tensor4D_Q8; // 3-D Tensor
+    qtype wq; // weight quantization bits
+} Tensor4D_Q8; // 4-D Tensor
 
 // Dense/Linear Functions
 void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,

@@ -14,6 +14,7 @@ cfu_enable:
 // a3: Number of elements in A Vec (Inner loop 1)
 // a4: Number of elements in W Mat (Outer loop 2)
 cfu_dotp:
+    fence.i
     li t0, 0  // Loop counter 1
 loop1:
     li t1, 0  // Loop counter 2
