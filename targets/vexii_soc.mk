@@ -4,7 +4,7 @@ VEXII_LD = $(MICO_DIR)/targets/vexii_soc/soc.ld
 MABI?=ilp32
 MARCH?=rv32imc
 
-RAM_SIZE?=1024K
+RAM_SIZE?=256K
 HEAP_SIZE?=32K
 STACK_SIZE?=$(HEAP_SIZE)
 
@@ -12,7 +12,7 @@ CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
 
 CFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
-CFLAGS += -DRISCV_VEXII -DTEST_NUM=$(TEST_NUM) -DMAX_HEAP_SIZE=$(HEAP_SIZE)
+CFLAGS += -DRISCV_VEXII -DSOC -DTEST_NUM=$(TEST_NUM) -DMAX_HEAP_SIZE=$(HEAP_SIZE)
 CFLAGS += -fno-common -fno-inline
 CFLAGS += -Wno-implicit-int -Wno-implicit-function-declaration
 CFLAGS += -I${VEXII_PATH}/ -I${VEXII_PATH}/driver

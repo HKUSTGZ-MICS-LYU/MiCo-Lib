@@ -39,6 +39,6 @@ endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 ifneq ($(filter simd, $(OPT)),)
-	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/mico_simd/*.c)
-	RISCV_SOURCE += $(wildcard ${VEXII_PATH}/$(MICO_ASM_DIR)/*.S)
+	MICO_SOURCES += $(wildcard $(VEXII_PATH)mico_simd/*.c)
+	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/$(MICO_ASM_DIR)/*.S)
 endif

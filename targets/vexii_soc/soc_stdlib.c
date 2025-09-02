@@ -13,10 +13,14 @@ void setStats(int enable)
 }
 
 void exit(int error){
-    // extern void pass();
-    // extern void fail();
-    // if(error) fail(); else pass();
+    extern void pass();
+    extern void fail();
+    if(error) fail(); else pass();
     while(1);
+}
+
+void delay(int ms){
+    clint_uDelay(ms*1000, SOC_FREQUENCY_HZ ,CLINT);
 }
 
 long time(){

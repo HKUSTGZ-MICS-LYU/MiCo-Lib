@@ -19,7 +19,8 @@
 #include "driver/clint.h"
 #include "driver/uart.h"
 
-// typedef int size_t;
+
+#define SOC_FREQUENCY_HZ 100000000 // 100 MHz
 
 void setStats(int enable);
 
@@ -27,6 +28,8 @@ void exit(int error);
 
 long time();
 void time_stamp();
+
+void delay(int ms);
 
 int puts(const char *s);
 int putchar(int c);

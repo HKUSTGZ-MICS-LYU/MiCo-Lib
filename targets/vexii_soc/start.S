@@ -79,9 +79,20 @@ init:
 #endif
 
 	call main
+.global pass
+.global fail
 mainDone:
-    j mainDone
-
+	// check main return code
+	// if 0, pass, else fail
+	beqz a0, pass
+	j fail
+	nop
+pass:
+    j pass
+    nop
+fail:
+    j fail
+    nop
 
 	.globl _init
 _init:
