@@ -23,9 +23,9 @@ With hardware requirement:
 
 ## Quantized Kernels
 
-We assumes an alignment of 32 elements for quantized data. Although it cost overhead during the quantization, it improves the overall performance:
+We **assumes an alignment of 32/64 elements** for quantized data. Although it cost overhead during the quantization, it improves the overall performance:
 
 + It maximizes the utilization of SIMD or unrolling on quantized kernels (`bitlinear` and `bitconv2d`).
 + It ensures aligned memory accesses, which will result in exceptions for some CPUs (like VexiiRiscv).
 
-The padding and aligning for activations are applied at the runtime, but weights need to be padded when exporting the model. The codegen of `MiCo-python` will detect the alignment and apply padding during the exporting of models.
+The padding and aligning for activations are applied at the runtime, but weights need to be padded when exporting the model. The codegen of `MiCo-python` will detect the alignment and apply padding during the exporting of models. If you want to develop or use other way to export your models, please ensure the alignment or work around the asm kernels.

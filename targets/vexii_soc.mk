@@ -12,7 +12,7 @@ CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
 
 CFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
-CFLAGS += -DRISCV_VEXII -DSOC -DTEST_NUM=$(TEST_NUM) -DMAX_HEAP_SIZE=$(HEAP_SIZE)
+CFLAGS += -DRISCV_VEXII -DSOC -DREPEAT -DTEST_NUM=$(TEST_NUM) -DMAX_HEAP_SIZE=$(HEAP_SIZE)
 CFLAGS += -fno-common -fno-inline
 CFLAGS += -Wno-implicit-int -Wno-implicit-function-declaration
 CFLAGS += -I${VEXII_PATH}/ -I${VEXII_PATH}/driver
@@ -32,3 +32,6 @@ else
 endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
+ifeq ($(OPT), cfu)
+	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/*.c) $(wildcard $(VEXII_PATH)/cfu/*.S)
+endif

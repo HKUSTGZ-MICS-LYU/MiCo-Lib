@@ -98,6 +98,41 @@ static int kvprintf(putc_fn out, void* ctx, const char* fmt, va_list ap) {
             case 'x': base = 16; upper = 0; break;
             case 'X': base = 16; upper = 1; break;
             case 'p': base = 16; upper = 0; long_count = sizeof(void*) == 8 ? 2 : 1; break;
+            case 'f':
+                {
+                    double val = va_arg(ap, double);
+                    int is_neg = 0;
+                    if (val < 0) { is_neg = 1; val = -val; }
+                    
+                    // Extract integer and fractional parts
+                    unsigned long long integer_part = (unsigned long long)val;
+                    double frac = val - (double)integer_part;
+                    
+                    // Convert fractional part to 5 decimal places (no rounding)
+                    unsigned long frac_part = (unsigned long)(frac * 100000.0);
+                    
+                    // Print sign
+                    if (is_neg) { out(ctx, '-'); count++; }
+                    
+                    // Print integer part
+                    char tmp[32];
+                    int n = utoa_base(integer_part, 10, 0, tmp);
+                    while (n--) { out(ctx, tmp[n]); count++; }
+                    
+                    // Print decimal point and fractional part
+                    out(ctx, '.'); count++;
+                    
+                    // Print exactly 5 decimal digits
+                    char frac_str[6];
+                    for (int i = 4; i >= 0; i--) {
+                        frac_str[i] = '0' + (frac_part % 10);
+                        frac_part /= 10;
+                    }
+                    for (int i = 0; i < 5; i++) {
+                        out(ctx, frac_str[i]); count++;
+                    }
+                    continue;
+                }
             default:
                 // unsupported specifier: print it literally
                 out(ctx, '%'); out(ctx, spec); count += 2;
