@@ -229,15 +229,6 @@ int __unordsf2 ( float a, float b)
   return ISNAN(a) || ISNAN(b);
 }
 
-
-int strlen(const char *s){
-    int i = 0;
-    while(s[i] != '\0'){
-        i++;
-    }
-    return i;
-}
-
 // void* memcpy(void *dest, const void *src, size_t count){
 //     // TODO: implement this
 //     return dest;
