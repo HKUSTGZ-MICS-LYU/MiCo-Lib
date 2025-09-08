@@ -15,50 +15,50 @@ loop1:
     mv a5, a0 // Save the starting pointer of A Vec
     li t4, 0  // Accumulator
 loop2:
-    lw t3, 0(a5) // Load Vec A
-    addi a5, a5, 4
+    ld t3, 0(a5) // Load Vec A
+    addi a5, a5, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    lw t2, 0(a1) // Load Mat W
+    ld t2, 0(a1) // Load Mat W
     opcode_R(CUSTOM0, 0x7, 0x01, t2, t2, t3)
     add t4, t4, t2
-    addi a1, a1, 4
+    addi a1, a1, 8
 
-    addi t1, t1, 32
+    addi t1, t1, 64
     blt t1, a3, loop2
     sw t4, 0(a2)
     addi t0, t0, 1
