@@ -2,6 +2,7 @@
     .globl _start
     .type _start,@function
 
+#include "riscv_asm.h"
 
 _start:
 #ifdef USE_GP
@@ -77,6 +78,11 @@ init:
 #ifndef NO_LIBC_INIT_ARRAY
 	call __libc_init_array
 #endif
+	// Enable FPU
+    li x1, MSTATUS_FS_MASK
+    csrc mstatus, x1
+    li x1, MSTATUS_FS_INITIAL
+    csrs mstatus, x1
 
 	call main
 .global pass
