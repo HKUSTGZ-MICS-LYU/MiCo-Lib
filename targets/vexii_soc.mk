@@ -10,6 +10,8 @@ RAM_SIZE?=256K
 HEAP_SIZE?=32K
 STACK_SIZE?=$(HEAP_SIZE)
 
+VLEN ?= 128
+
 CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
 
@@ -41,4 +43,5 @@ endif
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 ifeq ($(OPT), cfu)
 	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/*.c) $(wildcard $(VEXII_PATH)/cfu/*.S)
+	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/v$(VLEN)/*.S)
 endif

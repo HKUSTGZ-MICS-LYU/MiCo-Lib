@@ -1,6 +1,6 @@
 #include "mico_qnn.h"
 
-extern void cfu_dotp(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_dotp_int8(qword* a, qword* w, int32_t* o, int n, int m);
 extern void cfu_enable();
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
@@ -10,7 +10,7 @@ void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     // Check if it is possible to unroll
     if(in_features % 4 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp(
+            cfu_dotp_int8(
                 (qword*)(x->data+i*in_features), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
