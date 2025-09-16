@@ -27,6 +27,31 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 
+// Reference implementations for testing
+#ifdef REF
+void MiCo_Q8_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q4_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q2_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q1_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+void MiCo_Q8x4_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q8x2_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q8x1_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+void MiCo_Q4x2_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q4x1_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+void MiCo_Q2x1_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+void MiCo_Q4x8_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+void MiCo_Q2x8_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q2x4_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+void MiCo_Q1x8_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q1x4_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+void MiCo_Q1x2_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+#endif
 
 // Helper Macros
 #define SIGN_EXTEND_TO_INT8(x, n) ((int8_t)((x) << (8-(n))) >> (8-(n)))

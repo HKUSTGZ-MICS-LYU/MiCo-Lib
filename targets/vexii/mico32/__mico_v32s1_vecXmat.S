@@ -16,7 +16,7 @@ loop1:
 loop2:
     lw t2, 0(a5) // Load Vec A
     lw t3, 0(a1) // Load Mat W
-    opcode_R(CUSTOM0, 0x4, 0x01, t2, t2, t3)
+    opcode_R(CUSTOM0, 0x7, 0x08, t2, t2, t3)
     add t4, t4, t2
 
     addi t1, t1, 32
