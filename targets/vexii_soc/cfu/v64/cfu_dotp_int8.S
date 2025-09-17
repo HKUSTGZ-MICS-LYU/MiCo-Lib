@@ -1,3 +1,4 @@
+
 #include "custom_asm.h"
 
 .global cfu_dotp_int8
@@ -16,6 +17,7 @@ loop1:
     mv a5, a0 // Save pointer to W Mat
     li t4, 0  // Accumulator
 loop2:
+
     vpu_LOAD(a5, v0)
     vpu_LOAD(a1, v1)
     vpu_VDOT(t2, v0, v1)    // SIMD Dot Product
