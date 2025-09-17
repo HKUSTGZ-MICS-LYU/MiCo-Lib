@@ -9,6 +9,7 @@
 // a4: Number of elements in W Mat (Outer loop 2)
 cfu_dotp_int8:
     fence.i
+    vpu_CONFIG(8, 8)
     li t0, 0  // Loop counter 1
 loop1:
     li t1, 0  // Loop counter 2

@@ -8,6 +8,7 @@ MICO_SIMD_DIR?=mico32
 # if MARCH contains rv64, change MICO_SIMD_DIR to mico64
 ifeq ($(findstring rv64, $(MARCH)), rv64)
 	MICO_SIMD_DIR = mico64
+	MABI = lp64
 endif
 
 LARGE_RAM?=

@@ -106,8 +106,12 @@
 #define vpu_VDOT(rd, rs1, rs2)   \
 .word ((0x0B) | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | (0x1 << 12) | (0 << 25));
 
+#define vpu_CONFIG(qa, qb)   \
+.word ((0x0B) | (0 << 7) | ((qa) << 15) | ((qb) << 20) | (0x2 << 12) | (0 << 25));
+
 #define opcode_R(opcode, func3, func7, rd, rs1, rs2)   \
 .word ((opcode) | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | ((func3) << 12) | ((func7) << 25));
 
 #define cbo_flush(rs1)   \
 .word ((0x0F) | (regnum_##rs1 << 15) | (0x2 << 12) | (0x2 << 20));
+

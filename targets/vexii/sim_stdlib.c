@@ -104,20 +104,57 @@ int printf(const char *format, ...)
                     break;
                 }
                 if (format[i] == '.' || format[i] == 'f') {
-                    i++;
-                    if (format[i] < '0' || format[i] > '9') {
+                    int precision = 5; // default precision
+                    
+                    // Handle %.Nf format (precision specifier)
+                    if (format[i] == '.') {
+                        i++;
+                        if (format[i] >= '0' && format[i] <= '9') {
+                            precision = format[i] - '0';
+                            i++;
+                        }
+                        // Skip 'f' if present
+                        if (format[i] == 'f') {
+                            // continue to processing
+                        } else {
+                            i--; // backtrack if no 'f' found
+                        }
+                    }
+                    
+                    double f = va_arg(ap, double);
+                    
+                    // Handle negative numbers
+                    if (f < 0) {
+                        printf_c('-');
+                        f = -f;
+                    }
+                    
+                    // Handle special cases
+                    if (f != f) { // NaN check
+                        printf_s("nan");
                         break;
                     }
-                    float f = va_arg(ap,double);
-                    int int_part = (int)f;
-                    // default precision is 4
-                    int frac_part = (f - int_part) * 10000;
-                    printf_d(int_part);
-                    printf_c('.');
-                    for(int j = 1000; j > frac_part; j /= 10){
-                        printf_c('0');
+                    if (f > 1e30) { // Infinity approximation
+                        printf_s("inf");
+                        break;
                     }
-                    printf_d(frac_part);
+                    
+                    int int_part = (int)f;
+                    double frac_part = f - int_part;
+                    
+                    printf_d(int_part);
+                    
+                    if (precision > 0) {
+                        printf_c('.');
+                        
+                        // Print fractional digits
+                        for (int p = 0; p < precision; p++) {
+                            frac_part *= 10.0;
+                            int digit = (int)frac_part;
+                            printf_c('0' + digit);
+                            frac_part -= digit;
+                        }
+                    }
                     break;
                 }
                 else {

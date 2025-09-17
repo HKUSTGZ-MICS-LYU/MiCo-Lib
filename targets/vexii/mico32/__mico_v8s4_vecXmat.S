@@ -1,5 +1,4 @@
 #include "custom_asm.h"
-#include "sim_asm.h"
 
 .global __mico_v8s4_vecXmat
 // Process one output of a Vec x Mat (Linear) operation

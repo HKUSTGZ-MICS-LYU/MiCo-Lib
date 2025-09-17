@@ -20,10 +20,10 @@ loop2:
     vpu_LOAD(a1, v1)
     vpu_VDOT(t2, v0, v1)    // SIMD Dot Product
     add t4, t4, t2
-    addi a5, a5, 32
-    addi a1, a1, 32
+    addi a5, a5, 64
+    addi a1, a1, 64
 
-    addi t1, t1, 32
+    addi t1, t1, 64
     blt t1, a3, loop2
 
     sw t4, 0(a2)
