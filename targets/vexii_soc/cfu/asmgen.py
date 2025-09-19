@@ -34,13 +34,22 @@ loop2:
     blt t0, a4, loop1
     ret
 """
-compute_template = """
+
+load_act = """
     vpu_LOAD(a5, v0)
+    addi a5, a5, {step}
+"""
+load_wt = """
     vpu_LOAD(a1, v1)
+    addi a1, a1, {step}
+"""
+dotp = """
     vpu_VDOT(t2, v0, v1)    // SIMD Dot Product
     add t4, t4, t2
-    addi a5, a5, {step}
-    addi a1, a1, {step}
+"""
+dotp_rev = """
+    vpu_VDOT(t2, v1, v0)    // SIMD Dot Product
+    add t4, t4, t2
 """
 
 def gen_NxN_asm(prec, vlen):
@@ -52,15 +61,15 @@ def gen_NxN_asm(prec, vlen):
 
     if (elem_per_compute < min_inner_loop):
         repeat = min_inner_loop // elem_per_compute
-        compute_asm = compute_template.format(
-            step = step
-        )
+        compute_asm = load_act + load_wt + dotp
         compute_asm = compute_asm * repeat
         elem_per_compute = min_inner_loop
     else:
-        compute_asm = compute_template.format(
-            step = step
-        )
+        compute_asm = load_act + load_wt + dotp
+
+    compute_asm = compute_asm.format(
+        step = step
+    )
 
     asm = template.format(
         func_name = func_name,
@@ -75,6 +84,53 @@ def gen_NxN_asm(prec, vlen):
         f.write(asm)
     print(f"Generated {file_path}")
 
-for p in prec:
-    for v in vlen:
-        gen_NxN_asm(p, v)
+def gen_NxM_asm(prec1, prec2, vlen):
+    func_name = f"cfu_dotp_int{prec1}xint{prec2}"
+    file_path = f"v{vlen}/{func_name}.S"
+
+    step = (vlen // 8)
+
+    elem_per_compute = vlen // min(prec1, prec2)
+    
+    comp = dotp if prec1 > prec2 else dotp_rev
+
+    compute_asm = ""
+    compute_asm += load_act + load_wt + comp
+    if(prec1 > prec2):
+        for _ in range(prec1 // prec2 - 1):
+            compute_asm += load_act + comp
+    elif(prec1 < prec2):
+        for _ in range(prec2 // prec1 - 1):
+            compute_asm += load_wt + comp
+    compute_asm = compute_asm.format(
+        step = step
+    )
+    if (elem_per_compute < min_inner_loop):
+        repeat = min_inner_loop // elem_per_compute
+        compute_asm = compute_asm * repeat
+        elem_per_compute = min_inner_loop
+
+    asm = template.format(
+        func_name = func_name,
+        prec1 = max(prec1, prec2),
+        prec2 = min(prec1, prec2),
+        vlen = vlen,
+        compute_unroll = compute_asm,
+        elem_per_compute = elem_per_compute
+    )
+
+    with open(file_path, "w") as f:
+        f.write(asm)
+    print(f"Generated {file_path}")
+
+if __name__ == "__main__":
+
+    # for p in prec:
+    #     for v in vlen:
+    #         gen_NxN_asm(p, v)
+
+    for p in prec:
+        for q in prec:
+            if p != q:
+                for v in vlen:
+                    gen_NxM_asm(p, q, v)

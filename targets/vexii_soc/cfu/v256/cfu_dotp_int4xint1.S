@@ -1,16 +1,16 @@
 
 #include "custom_asm.h"
 
-.global cfu_dotp_int1
-// Process one output of a Vec x Mat (Linear) operation (128-bit)
-// a0: pointer to A Vec (1-bit)
+.global cfu_dotp_int4xint1
+// Process one output of a Vec x Mat (Linear) operation (256-bit)
+// a0: pointer to A Vec (4-bit)
 // a1: pointer to W Mat (1-bit)
 // a2: pointer to O Vec (32-bit)
 // a3: Number of elements in A Vec (Inner loop 1)
 // a4: Number of elements in W Mat (Outer loop 2)
-cfu_dotp_int1:
+cfu_dotp_int4xint1:
     fence.i
-    vpu_CONFIG(1, 1)
+    vpu_CONFIG(4, 1)
     li t0, 0  // Loop counter 1
 loop1:
     li t1, 0  // Loop counter 2
@@ -19,15 +19,33 @@ loop1:
 loop2:
 
     vpu_LOAD(a5, v0)
-    addi a5, a5, 16
+    addi a5, a5, 32
 
     vpu_LOAD(a1, v1)
-    addi a1, a1, 16
+    addi a1, a1, 32
 
     vpu_VDOT(t2, v0, v1)    // SIMD Dot Product
     add t4, t4, t2
 
-    addi t1, t1, 128
+    vpu_LOAD(a5, v0)
+    addi a5, a5, 32
+
+    vpu_VDOT(t2, v0, v1)    // SIMD Dot Product
+    add t4, t4, t2
+
+    vpu_LOAD(a5, v0)
+    addi a5, a5, 32
+
+    vpu_VDOT(t2, v0, v1)    // SIMD Dot Product
+    add t4, t4, t2
+
+    vpu_LOAD(a5, v0)
+    addi a5, a5, 32
+
+    vpu_VDOT(t2, v0, v1)    // SIMD Dot Product
+    add t4, t4, t2
+
+    addi t1, t1, 256
     blt t1, a3, loop2
 
     sw t4, 0(a2)
