@@ -118,6 +118,10 @@ void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);
 void MiCo_print_tensor3d_f32(const Tensor3D_F32 *x);
 void MiCo_print_tensor4d_f32(const Tensor4D_F32 *x);
 
+// Allocate Functions
+void* MiCo_alloc(const size_t size, const int align);
+void MiCo_free(void *ptr);
+
 // MatMul Functions
 void MiCo_MatMul_f32(float* y, const float* x, const float* w, 
     const size_t m, const size_t n, const size_t p);

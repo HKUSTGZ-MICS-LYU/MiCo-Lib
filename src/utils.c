@@ -45,3 +45,28 @@ void MiCo_assert(const int condition, const char *message){
         exit(1);
     }
 }
+
+void* MiCo_alloc(const size_t size, const int align){
+    if (size == 0) return NULL;
+    size_t a = (align > 0) ? (size_t)align : sizeof(void*);
+    // require power-of-two alignment
+    if ((a & (a - 1)) != 0) return NULL;
+
+    // extra space for alignment padding + to store the raw pointer
+    void *raw = malloc(size + a - 1 + sizeof(void*));
+    if (!raw) return NULL;
+
+    uintptr_t addr = (uintptr_t)raw + sizeof(void*);
+    uintptr_t aligned_addr = (addr + (a - 1)) & ~(uintptr_t)(a - 1);
+    void **aligned = (void**)aligned_addr;
+
+    // store the original allocation just before the aligned block
+    aligned[-1] = raw;
+    return aligned;
+}
+
+void MiCo_free(void *ptr){
+    if (!ptr) return;
+    void *raw = ((void**)ptr)[-1];
+    free(raw);
+}

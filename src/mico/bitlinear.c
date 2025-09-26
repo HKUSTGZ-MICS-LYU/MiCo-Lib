@@ -91,6 +91,12 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     QUANT_TIMER += MiCo_time() - start;
     // printf("Quant Speed: %ld\n", MiCo_time() - start);
 
+    // For Vector Processing CFU Backend, check alignment
+    #ifdef VLEN
+    if ((uintptr_t)(qx.data) % (VLEN/8) != 0){
+        printf("[Warning] Activation Not Aligned to VLEN(%d) - %p\n", VLEN, qx.data);
+    }
+    #endif
     // TODO: Maybe we should use Enum for aq and wq, so that we can skip qlog
     start = MiCo_time();
     MiCo_QMatMul[qlog(aq)][qlog(wq)](qO, &qx, weight);
