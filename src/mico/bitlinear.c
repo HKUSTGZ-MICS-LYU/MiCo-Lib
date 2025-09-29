@@ -66,22 +66,22 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     qx.shape[1] = aligned_size;
 
     start = MiCo_time();
+    const size_t qx_size = b*aligned_size*sizeof(int8_t) / (8/aq);
+    MiCo_assert(qx_size < QUANTIZE_BUFFER_SIZE, "Quantization Buffer Overflow");
+    qx.data = MiCo_QBuffer;
+
     switch (aq)
     {
       case 8:
-        qx.data = malloc(b*aligned_size*sizeof(int8_t));
         MiCo_2D_FP32toQ8(&qx, x);
         break;
       case 4:
-        qx.data = malloc(b*aligned_size*sizeof(int8_t)/2);
         MiCo_2D_FP32toQ4(&qx, x);
         break;
       case 2:
-        qx.data = malloc(b*aligned_size*sizeof(int8_t)/4);
         MiCo_2D_FP32toQ2(&qx, x);
         break;
       case 1:
-        qx.data = malloc(b*aligned_size*sizeof(int8_t)/8);
         MiCo_2D_FP32toQ1(&qx, x);
         break;
       default:
@@ -91,12 +91,6 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     QUANT_TIMER += MiCo_time() - start;
     // printf("Quant Speed: %ld\n", MiCo_time() - start);
 
-    // For Vector Processing CFU Backend, check alignment
-    #ifdef VLEN
-    if ((uintptr_t)(qx.data) % (VLEN/8) != 0){
-        printf("[Warning] Activation Not Aligned to VLEN(%d) - %p\n", VLEN, qx.data);
-    }
-    #endif
     // TODO: Maybe we should use Enum for aq and wq, so that we can skip qlog
     start = MiCo_time();
     MiCo_QMatMul[qlog(aq)][qlog(wq)](qO, &qx, weight);
@@ -104,7 +98,7 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     // printf("MatMul Speed: %ld\n", MiCo_time() - start);
 
     float scale = weight->scale * qx.scale;
-    // De-Quantization
+    // De-Quantization (TODO: Heavy in FP32 operations)
     start = MiCo_time();
     for (size_t i = 0; i < b; i++) {
       baddr = i * m;
@@ -115,7 +109,7 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     QUANT_TIMER += MiCo_time() - start;
     // printf("DeQuant Speed: %ld\n", MiCo_time() - start);
     // printf("DeQuant Scale: %.4f\n", scale);
+    
     // Free Quantized Memory
-    free(qx.data);
     free(qO);
 }

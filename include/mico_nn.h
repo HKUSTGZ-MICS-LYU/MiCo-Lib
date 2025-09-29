@@ -13,6 +13,13 @@
 #include "nn.h"
 #include "qtypes.h"
 
+#ifndef QUANTIZE_BUFFER_SIZE
+#define QUANTIZE_BUFFER_SIZE 1024*32
+#endif
+
+// Global buffer for quantization operations
+extern qbyte MiCo_QBuffer[QUANTIZE_BUFFER_SIZE];
+
 // TODO: Here Q8 is used for any bit-width like 8, 4, 2, 1. Alter it later.
 typedef struct {
     qbyte *data;

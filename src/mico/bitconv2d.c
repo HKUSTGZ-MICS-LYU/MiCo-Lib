@@ -102,7 +102,8 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 
     size_t qx_size = aligned_size * block_out_size * sizeof(qbyte);
     qx_size /= (8 / aq); // Num of Act per Byte
-    qbyte* qx_data = malloc(qx_size);
+    MiCo_assert(qx_size < QUANTIZE_BUFFER_SIZE, "Quantization Buffer Overflow");
+    qbyte* qx_data = MiCo_QBuffer;
 
     for (size_t b = 0; b < batch_size; b++){
         for (size_t g = 0; g < groups; g++) {
@@ -172,7 +173,15 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 //     printf("Im2Col MatMul Shape (block): %ldx%ldx%ld\n", 
                 //           qw.shape[0], qw.shape[1], qx.shape[0]);
                 // }
-                
+                // #ifdef VLEN
+                const int VLEN = 64;
+                // if ((uintptr_t)(qx.data) % (VLEN/8) != 0){
+                //     printf("[Warning] Activation Not Aligned to VLEN(%d) - %p\n", VLEN, qx.data);
+                // }
+                // if ((uintptr_t)(qw.data) % (VLEN/8) != 0){
+                //     printf("[Warning] Weight Not Aligned to VLEN(%d) - %p\n", VLEN, weight->data);
+                // }
+                // #endif
                 // MatMul-Based Convolution for the current block
                 start = MiCo_time();
                 MiCo_QMatMul[qlog(wq)][qlog(aq)](qO, &qw, &qx);
@@ -197,7 +206,6 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             }
         }
     }
-    free(qx_data);
     free(qO);
     free(col);
 }

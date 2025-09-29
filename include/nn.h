@@ -12,11 +12,16 @@
 #endif
 
 #define FLOAT_MAX 1e10
+#ifndef MICO_ALIGN
+#define MICO_ALIGN 4
+#endif
 
-// http://elm-chan.org/junk/32bit/binclude.html
-#define INCLUDE_FILE(section, filename, symbol) asm (\
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
+#define INCLUDE_FILE(section, filename, symbol) __asm__ (\
     ".section "#section"\n"                   /* Change section */\
-    ".balign 4\n"                             /* Word alignment */\
+    ".balign "TOSTRING(MICO_ALIGN)"\n"        /* Word alignment using MICO_ALIGN */\
     ".global "#symbol"_start\n"               /* Export the object start address */\
     ".global "#symbol"_data\n"                /* Export the object address */\
     #symbol"_start:\n"                        /* Define the object start address label */\
@@ -24,9 +29,9 @@
     ".incbin \""filename"\"\n"                /* Import the file */\
     ".global "#symbol"_end\n"                 /* Export the object end address */\
     #symbol"_end:\n"                          /* Define the object end address label */\
-    ".balign 4\n"                             /* Word alignment */\
-    ".section \".text\"\n")                   /* Restore section */
-
+    ".balign "TOSTRING(MICO_ALIGN)"\n"        /* Word alignment using MICO_ALIGN */\
+    ".section \".text\"\n")  
+    
 typedef struct {
     float *data;
 } Tensor0D_F32; // Scalar

@@ -44,11 +44,13 @@ RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 ifneq ($(filter cfu, $(OPT)),)
 	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/*.c) $(wildcard $(VEXII_PATH)/cfu/*.S)
 	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/v$(VLEN)/*.S)
+	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8))
 endif
 
 MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico32
 ifeq ($(findstring rv64, $(MARCH)), rv64)
 	MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico64
+	CFLAGS += -DMICO_ALIGN=8
 endif
 ifneq ($(filter simd, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(MICO_SIMD_DIR)/*.c)
