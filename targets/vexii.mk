@@ -4,11 +4,20 @@ VEXII_LD = $(MICO_DIR)/targets/vexii/vexii.ld
 MABI?=ilp32
 MARCH?=rv32imc
 MICO_SIMD_DIR?=mico32
-
-# if MARCH contains rv64, change MICO_SIMD_DIR to mico64
 ifeq ($(findstring rv64, $(MARCH)), rv64)
 	MICO_SIMD_DIR = mico64
-	MABI = lp64
+	CFLAGS += -DMICO_ALIGN=8
+	ifneq ($(findstring f, $(MARCH)),)
+		MABI = lp64f
+	else
+		MABI = lp64
+	endif
+else
+	ifneq ($(findstring f, $(MARCH)),)
+		MABI = ilp32f
+	else
+		MABI = ilp32
+	endif
 endif
 
 LARGE_RAM?=
@@ -32,10 +41,11 @@ LDFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
 LDFLAGS += -nostdlib -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(VEXII_LD),-Map,$(BUILD)/$(MAIN).map,--print-memory-usage
 LDFLAGS += -L./ -nolibc -lm -lc
 
-ifeq ($(MARCH), rv32imc)
-	LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
+ifneq ($(findstring f, $(MARCH)),)
+    LDFLAGS += -lgcc
+	CFLAGS += -DUSE_RVF
 else
-	LDFLAGS += -lgcc
+    LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
 endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)

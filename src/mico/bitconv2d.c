@@ -154,6 +154,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                     break;
                 }
                 QUANT_TIMER += MiCo_time() - start;
+                // printf("Quant Speed: %ld\n", MiCo_time() - start);
 
                 // Get the weights for the current group
                 Tensor2D_Q8 qw;
@@ -175,13 +176,6 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 // }
                 // #ifdef VLEN
                 const int VLEN = 64;
-                // if ((uintptr_t)(qx.data) % (VLEN/8) != 0){
-                //     printf("[Warning] Activation Not Aligned to VLEN(%d) - %p\n", VLEN, qx.data);
-                // }
-                // if ((uintptr_t)(qw.data) % (VLEN/8) != 0){
-                //     printf("[Warning] Weight Not Aligned to VLEN(%d) - %p\n", VLEN, weight->data);
-                // }
-                // #endif
                 // MatMul-Based Convolution for the current block
                 start = MiCo_time();
                 MiCo_QMatMul[qlog(wq)][qlog(aq)](qO, &qw, &qx);
@@ -203,6 +197,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                     }
                 }
                 QUANT_TIMER += MiCo_time() - start;
+                // printf("DeQuant Speed: %ld\n", MiCo_time() - start);
             }
         }
     }

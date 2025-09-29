@@ -2,6 +2,37 @@
 
 #include <math.h>
 
+#ifdef USE_RVF
+int roundf2i(float x){
+    int result;
+    asm volatile (
+        "fcvt.w.s %0, %1, rmm"
+        : "=r" (result)
+        : "f" (x)
+    );
+    return result;
+}
+
+float roundf2f(float x){
+    int result;
+    asm volatile (
+        "fcvt.w.s %0, %1, rmm"
+        : "=r" (result)
+        : "f" (x)
+    );
+    asm volatile (
+        "fcvt.s.w %0, %1"
+        : "=f" (x)
+        : "r" (result)
+    );
+    return x;
+}
+#else
+int8_t roundf2i(float x){
+    return (int8_t)(roundf(x));
+}
+#endif
+
 __attribute__((weak)) float MiCo_absmax(float* x, size_t n){
     float absmax = 0.0;
     for (int i = 0; i < n; i++){
@@ -25,11 +56,11 @@ __attribute__((weak)) float MiCo_absmean(float* x, size_t n){
     return absmean;
 }
 
-// TODO: roundf seems heavy here...
+// TODO: roundf2i seems heavy here...
 __attribute__((weak)) float __FP32toQ8(qbyte* qx, float* x, size_t n){
     float scale = 127.0 / MiCo_absmax(x, n);
     for (int i = 0; i < n; i++){
-        qx[i] = (int8_t)(roundf(x[i] * scale));
+        qx[i] = (int8_t)(roundf2i(x[i] * scale));
     }
     return 1.0 / scale;
 }
@@ -37,8 +68,8 @@ __attribute__((weak)) float __FP32toQ8(qbyte* qx, float* x, size_t n){
 __attribute__((weak)) float __FP32toQ4(qbyte* qx, float* x, size_t n){
     float scale = 7.0 / MiCo_absmax(x, n);
     for (int i = 0; i < n; i+=2){
-        qx[i/2] = ((int8_t)(roundf(x[i] * scale)) & 0xF) | 
-        (((int8_t)(roundf(x[i+1] * scale)) & 0xF) << 4);
+        qx[i/2] = ((int8_t)(roundf2i(x[i] * scale)) & 0xF) | 
+        (((int8_t)(roundf2i(x[i+1] * scale)) & 0xF) << 4);
     }
     return 1.0 / scale;
 }
@@ -49,10 +80,10 @@ __attribute__((weak)) float __FP32toQ2(qbyte* qx, float* x, size_t n){
 
     for (int i = 0; i < n; i+=4){
         // Unrolled 4 Times
-        qx[i/4] = (CLAMP_INT2((int8_t)(roundf(x[i] * scale)) & 0x3)) | 
-            (CLAMP_INT2(((int8_t)(roundf(x[i+1] * scale)) & 0x3)) << 2) |
-            (CLAMP_INT2(((int8_t)(roundf(x[i+2] * scale)) & 0x3)) << 4) |
-            (CLAMP_INT2(((int8_t)(roundf(x[i+3] * scale)) & 0x3)) << 6);
+        qx[i/4] = (CLAMP_INT2((int8_t)(roundf2i(x[i] * scale)) & 0x3)) | 
+            (CLAMP_INT2(((int8_t)(roundf2i(x[i+1] * scale)) & 0x3)) << 2) |
+            (CLAMP_INT2(((int8_t)(roundf2i(x[i+2] * scale)) & 0x3)) << 4) |
+            (CLAMP_INT2(((int8_t)(roundf2i(x[i+3] * scale)) & 0x3)) << 6);
     }
     return 1.0 / scale;
 }
@@ -94,7 +125,7 @@ __attribute__((weak)) void MiCo_2D_FP32toQ8(Tensor2D_Q8 *qx, const Tensor2D_F32 
                 qx->data[b*qx_n + i] = 0;
                 continue;
             }
-            qx->data[b*qx_n + i] = (int8_t)(roundf(x->data[b*n + i] * scale));
+            qx->data[b*qx_n + i] = (int8_t)(roundf2i(x->data[b*n + i] * scale));
         }
     }
     qx->scale = 1.0 / scale;
@@ -120,10 +151,10 @@ __attribute__((weak)) void MiCo_2D_FP32toQ4(Tensor2D_Q8 *qx, const Tensor2D_F32 
             // Handle case where we have odd number of elements
             int8_t second_val = 0;
             if (i+1 < n) {
-                second_val = (int8_t)(roundf(x->data[b*n + i+1] * scale));
+                second_val = (int8_t)(roundf2i(x->data[b*n + i+1] * scale));
             }
             
-            qx->data[(b*qx_n + i)/2] = ((int8_t)(roundf(x->data[b*n + i] * scale)) & 0xF) | 
+            qx->data[(b*qx_n + i)/2] = ((int8_t)(roundf2i(x->data[b*n + i] * scale)) & 0xF) | 
                                       ((second_val & 0xF) << 4);
         }
     }
@@ -149,10 +180,10 @@ __attribute__((weak)) void MiCo_2D_FP32toQ2(Tensor2D_Q8 *qx, const Tensor2D_F32 
             }
             
             // Handle boundary conditions
-            int8_t val0 = (i < n) ? (int8_t)(roundf(x->data[b*n + i] * scale)) : 0;
-            int8_t val1 = (i+1 < n) ? (int8_t)(roundf(x->data[b*n + i+1] * scale)) : 0;
-            int8_t val2 = (i+2 < n) ? (int8_t)(roundf(x->data[b*n + i+2] * scale)) : 0;
-            int8_t val3 = (i+3 < n) ? (int8_t)(roundf(x->data[b*n + i+3] * scale)) : 0;
+            int8_t val0 = (i < n) ? (int8_t)(roundf2i(x->data[b*n + i] * scale)) : 0;
+            int8_t val1 = (i+1 < n) ? (int8_t)(roundf2i(x->data[b*n + i+1] * scale)) : 0;
+            int8_t val2 = (i+2 < n) ? (int8_t)(roundf2i(x->data[b*n + i+2] * scale)) : 0;
+            int8_t val3 = (i+3 < n) ? (int8_t)(roundf2i(x->data[b*n + i+3] * scale)) : 0;
             
             qx->data[(b*qx_n + i)/4] = (CLAMP_INT2(val0 & 0x3)) | 
                                      (CLAMP_INT2((val1 & 0x3)) << 2) |

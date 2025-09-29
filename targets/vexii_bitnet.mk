@@ -3,6 +3,20 @@ VEXII_BN_LD = $(MICO_DIR)/targets/vexii_bitnet/vexii.ld
 
 MABI?=ilp32
 MARCH?=rv32imc
+ifeq ($(findstring rv64, $(MARCH)), rv64)
+	CFLAGS += -DMICO_ALIGN=8
+	ifneq ($(findstring f, $(MARCH)),)
+		MABI = lp64f
+	else
+		MABI = lp64
+	endif
+else
+	ifneq ($(findstring f, $(MARCH)),)
+		MABI = ilp32f
+	else
+		MABI = ilp32
+	endif
+endif
 
 LARGE_RAM?=
 HEAP_SIZE=4096*1024
@@ -29,9 +43,10 @@ LDFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
 LDFLAGS += -nostdlib -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(VEXII_BN_LD),-Map,$(BUILD)/$(MAIN).map,--print-memory-usage
 LDFLAGS += -L./ -nolibc -lm -lc
 
-ifeq ($(MARCH), rv32imc)
-	LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
+ifneq ($(findstring f, $(MARCH)),)
+    LDFLAGS += -lgcc
+	CFLAGS += -DUSE_RVF
 else
-	LDFLAGS += -lgcc
+    LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
 endif
 RISCV_SOURCE = $(wildcard $(VEXII_BN_PATH)/*.c) $(wildcard $(VEXII_BN_PATH)/*.S)

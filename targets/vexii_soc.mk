@@ -4,6 +4,24 @@ VEXII_LD = $(MICO_DIR)/targets/vexii_soc/soc.ld
 MABI?=ilp32
 MARCH?=rv32imc
 
+# ABI Correction based on MARCH
+MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico32
+ifeq ($(findstring rv64, $(MARCH)), rv64)
+	MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico64
+	CFLAGS += -DMICO_ALIGN=8
+	ifneq ($(findstring f, $(MARCH)),)
+		MABI = lp64f
+	else
+		MABI = lp64
+	endif
+else
+	ifneq ($(findstring f, $(MARCH)),)
+		MABI = ilp32f
+	else
+		MABI = ilp32
+	endif
+endif
+
 REPAET?=0
 
 RAM_SIZE?=256K
@@ -34,10 +52,11 @@ LDFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
 LDFLAGS += -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(VEXII_LD),-Map,$(BUILD)/$(MAIN).map,--print-memory-usage
 LDFLAGS += -L./ -lm -lc
 
-ifeq ($(MARCH), rv32imc)
-	LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
+ifneq ($(findstring f, $(MARCH)),)
+    LDFLAGS += -lgcc
+	CFLAGS += -DUSE_RVF
 else
-	LDFLAGS += -lgcc
+    LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
 endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
@@ -47,11 +66,6 @@ ifneq ($(filter cfu, $(OPT)),)
 	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8))
 endif
 
-MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico32
-ifeq ($(findstring rv64, $(MARCH)), rv64)
-	MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico64
-	CFLAGS += -DMICO_ALIGN=8
-endif
 ifneq ($(filter simd, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(MICO_SIMD_DIR)/*.c)
 	RISCV_SOURCE += $(wildcard $(MICO_SIMD_DIR)/*.S)
