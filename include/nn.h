@@ -153,4 +153,40 @@ void im2col_block_T_aligned(const float* data_im, const int channels,
     const int height, const int width, const int kernel_size,
     const int stride, const int pad, float* data_col,
     const int row_offset, const int num_rows, const int out_width);
+
+// Multi-Head Attention Functions
+typedef struct MHA_Config
+{
+    int n_heads;             // number of attention heads
+    int head_size;           // size of each head
+    int kv_dim;              // key-value dimension
+    int kv_mul;              // kv multiplier for GQA
+    int seq_len;             // sequence length
+} MiCo_MHA_Config;
+
+void MiCo_multihead_attention_f32(
+    Tensor2D_F32* output,           // [n_heads, head_size] - output buffer
+    const Tensor2D_F32* query,     // [n_heads, head_size] - query vectors
+    float* key_cache,        // key cache buffer
+    float* value_cache,      // value cache buffer
+    float* att_buffer,             // [n_heads, seq_len] - attention scores buffer
+    const int pos,                 // current position
+    const MiCo_MHA_Config* cfg     // MHA configuration
+);
+
+void MiCo_multihead_attention_f32_kv8(
+    Tensor2D_F32* output,           // [n_heads, head_size] - output buffer
+    const Tensor2D_F32* query,     // [n_heads, head_size] - query vectors
+    int8_t* key_cache,        // key cache buffer
+    int8_t* value_cache,      // value cache buffer
+    float* key_scales,       // key scales buffer
+    float* value_scales,     // value scales buffer
+    float* att_buffer,             // [n_heads, seq_len] - attention scores buffer
+    const int pos,                 // current position
+    const MiCo_MHA_Config* cfg     // MHA configuration
+);
+
+// Softmax Function
+void softmax(float* x, int size);
+
 #endif // __NN_H
