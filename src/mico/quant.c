@@ -28,9 +28,7 @@ float roundf2f(float x){
     return x;
 }
 #else
-int8_t roundf2i(float x){
-    return (int8_t)(roundf(x));
-}
+#define roundf2i(x) roundf(x)
 #endif
 
 __attribute__((weak)) float MiCo_absmax(float* x, size_t n){
@@ -56,7 +54,7 @@ __attribute__((weak)) float MiCo_absmean(float* x, size_t n){
     return absmean;
 }
 
-// TODO: roundf2i seems heavy here...
+// TODO: roundf2i is heavy without RVF support
 __attribute__((weak)) float __FP32toQ8(qbyte* qx, float* x, size_t n){
     float scale = 127.0 / MiCo_absmax(x, n);
     for (int i = 0; i < n; i++){
