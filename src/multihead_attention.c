@@ -1,9 +1,10 @@
 #include "nn.h"
-
+#include "profile.h"
 #include <math.h>
 
-
+extern long SOFTMAX_TIMER;
 void softmax(float* x, int size) {
+    long start = MiCo_time();
     // find max value (for numerical stability)
     float max_val = x[0];
     for (int i = 1; i < size; i++) {
@@ -21,6 +22,8 @@ void softmax(float* x, int size) {
     for (int i = 0; i < size; i++) {
         x[i] /= sum;
     }
+    long end = MiCo_time();
+    SOFTMAX_TIMER += end - start;
 }
 
 void MiCo_multihead_attention_f32(
