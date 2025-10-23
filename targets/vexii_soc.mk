@@ -55,6 +55,8 @@ LDFLAGS += -L./ -lm -lc
 ifneq ($(findstring f, $(MARCH)),)
     LDFLAGS += -lgcc
 	CFLAGS += -DUSE_RVF
+else ifneq ($(findstring rv64, $(MARCH)),)
+    LDFLAGS += -lgcc
 else
     LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
 endif
