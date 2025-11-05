@@ -44,8 +44,12 @@ LDFLAGS += -L./ -nolibc -lm -lc
 ifneq ($(findstring f, $(MARCH)),)
     LDFLAGS += -lgcc
 	CFLAGS += -DUSE_RVF
+else ifneq ($(findstring rv64, $(MARCH)),)
+	LDFLAGS += -lgcc
+else ifneq ($(findstring m, $(MARCH)),)
+    LDFLAGS += -L$(MICO_DIR)/lib/$(MARCH)/ -lrvfp
 else
-    LDFLAGS += -L$(MICO_DIR)/lib/ -lrvfp
+	LDFLAGS += -lgcc
 endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
