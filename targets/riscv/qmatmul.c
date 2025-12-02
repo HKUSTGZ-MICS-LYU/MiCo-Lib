@@ -193,13 +193,13 @@ void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
         const int8_t *x_row = &x->data[i * in_features];
         
         // Compute total sum with unrolling
-        size_t k;
-        for (k = 0; k + 8 <= in_features; k += 8) {
-            total_sum += x_row[k] + x_row[k+1] + x_row[k+2] + x_row[k+3];
-            total_sum += x_row[k+4] + x_row[k+5] + x_row[k+6] + x_row[k+7];
+        size_t sum_k;
+        for (sum_k = 0; sum_k + 8 <= in_features; sum_k += 8) {
+            total_sum += x_row[sum_k] + x_row[sum_k+1] + x_row[sum_k+2] + x_row[sum_k+3];
+            total_sum += x_row[sum_k+4] + x_row[sum_k+5] + x_row[sum_k+6] + x_row[sum_k+7];
         }
-        for (; k < in_features; k++) {
-            total_sum += x_row[k];
+        for (; sum_k < in_features; sum_k++) {
+            total_sum += x_row[sum_k];
         }
         
         for (size_t j = 0; j < out_features; j++) {
@@ -223,10 +223,10 @@ void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
             
             // Handle remaining elements
             size_t remaining_start = word_count * 32;
-            for (k = remaining_start; k < in_features; k++) {
-                int8_t temp_w = w_row[k/8];
-                if (EXTRACT_BIT(temp_w, k & 0b111)) {
-                    neg_sum += x_row[k];
+            for (size_t rem_k = remaining_start; rem_k < in_features; rem_k++) {
+                int8_t temp_w = w_row[rem_k/8];
+                if (EXTRACT_BIT(temp_w, rem_k & 0b111)) {
+                    neg_sum += x_row[rem_k];
                 }
             }
             
