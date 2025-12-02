@@ -581,13 +581,14 @@ void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
                 acc += 2 * popcount - 32;
             }
             
-            // Handle remaining bits
+            // Handle remaining bits using row pointers
             size_t remaining_start = word_count * 32;
             for (size_t k = remaining_start; k < in_features; k++) {
-                int8_t temp_w = w->data[(j * in_features + k)/8];
+                size_t bit_offset = k - remaining_start;
+                int8_t temp_w = w_row[(remaining_start + bit_offset)/8];
                 temp_w = EXTRACT_BIT(temp_w, k & 0b111);
                 temp_w = BIT_TO_INT8(temp_w);
-                int8_t temp_a = x->data[(i * in_features + k)/8];
+                int8_t temp_a = x_row[(remaining_start + bit_offset)/8];
                 temp_a = EXTRACT_BIT(temp_a, k & 0b111);
                 temp_a = BIT_TO_INT8(temp_a);
                 acc += temp_a * temp_w;

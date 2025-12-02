@@ -48,6 +48,7 @@ All standard MiCo mixed precision matmul operations are supported:
 - `MiCo_Q1_MatMul`: 1-bit x 1-bit (Binary Neural Network) *(optimized)*
 - `MiCo_Q4x8_MatMul`: 4-bit activation x 8-bit weight
 - `MiCo_Q2x8_MatMul`: 2-bit activation x 8-bit weight
+- `MiCo_Q2x4_MatMul`: 2-bit activation x 4-bit weight
 - `MiCo_Q1x8_MatMul`: 1-bit activation x 8-bit weight *(optimized)*
 - `MiCo_Q1x4_MatMul`: 1-bit activation x 4-bit weight *(optimized)*
 - `MiCo_Q1x2_MatMul`: 1-bit activation x 2-bit weight *(optimized)*
