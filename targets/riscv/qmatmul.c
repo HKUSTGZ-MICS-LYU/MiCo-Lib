@@ -6,6 +6,27 @@
 
 #define MATMUL_UNROLL_FACTOR 4
 
+// Software popcount implementation for portability
+// Uses parallel bit counting algorithm (Brian Kernighan's method variant)
+static inline int software_popcount(qword x) {
+    x = x - ((x >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    x = (x + (x >> 4)) & 0x0F0F0F0F;
+    x = x + (x >> 8);
+    x = x + (x >> 16);
+    return x & 0x3F;
+}
+
+// Helper to safely load a qword handling potential alignment issues
+static inline qword safe_load_qword(const int8_t *ptr) {
+    qword result;
+    // Use byte-by-byte copy to avoid unaligned access issues
+    const uint8_t *src = (const uint8_t *)ptr;
+    result = (qword)src[0] | ((qword)src[1] << 8) | 
+             ((qword)src[2] << 16) | ((qword)src[3] << 24);
+    return result;
+}
+
 // Optimized 8-bit x 8-bit MatMul with loop unrolling
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
@@ -151,7 +172,7 @@ void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
             
             // Process 32 elements at a time (4 bytes of packed weights)
             for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword wb = *(qword*)(w_row + k/8);
+                qword wb = safe_load_qword(w_row + k/8);
                 
                 for (int b = 0; b < 32; b++) {
                     int8_t bit = (wb >> b) & 1;
@@ -306,7 +327,7 @@ void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
             
             // Process 32 elements at a time (16 bytes of 4-bit x, 4 bytes of 1-bit w)
             for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword wb = *(qword*)(w_row + k/8);
+                qword wb = safe_load_qword(w_row + k/8);
                 
                 for (int b = 0; b < 32; b++) {
                     int8_t temp_a = x_row[(k + b)/2];
@@ -408,7 +429,7 @@ void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
             
             // Process 32 elements at a time (8 bytes of 2-bit x, 4 bytes of 1-bit w)
             for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword wb = *(qword*)(w_row + k/8);
+                qword wb = safe_load_qword(w_row + k/8);
                 
                 for (int b = 0; b < 32; b++) {
                     int8_t temp_a = x_row[(k + b)/4];
@@ -446,13 +467,15 @@ void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     for (size_t i = 0; i < batch_size; i++) {
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc = 0;
-            const qword *x_row = (const qword*)&x->data[i * in_features / 8];
-            const qword *w_row = (const qword*)&w->data[j * in_features / 8];
+            const int8_t *x_row = &x->data[i * in_features / 8];
+            const int8_t *w_row = &w->data[j * in_features / 8];
             
             // Use XOR + popcount for binary neural networks
             for (size_t k = 0; k < word_count; k++) {
-                qword xnor_result = ~(x_row[k] ^ w_row[k]);
-                int popcount = __builtin_popcount(xnor_result);
+                qword x_word = safe_load_qword(x_row + k * 4);
+                qword w_word = safe_load_qword(w_row + k * 4);
+                qword xnor_result = ~(x_word ^ w_word);
+                int popcount = software_popcount(xnor_result);
                 // XNOR gives 1 when bits match: +1 for match, -1 for mismatch
                 // popcount = number of matches
                 // acc += 2*popcount - 32 = (matches - mismatches)
@@ -593,7 +616,7 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
             
             // Process 32 elements at a time
             for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword xb = *(qword*)(x_row + k/8);
+                qword xb = safe_load_qword(x_row + k/8);
                 
                 for (int b = 0; b < 32; b++) {
                     int8_t bit = (xb >> b) & 1;
@@ -693,7 +716,7 @@ void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
             
             // Process 32 elements at a time
             for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword xb = *(qword*)(x_row + k/8);
+                qword xb = safe_load_qword(x_row + k/8);
                 
                 for (int b = 0; b < 32; b++) {
                     int8_t temp_w = w_row[(k + b)/2];
@@ -736,7 +759,7 @@ void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
             
             // Process 32 elements at a time
             for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword xb = *(qword*)(x_row + k/8);
+                qword xb = safe_load_qword(x_row + k/8);
                 
                 for (int b = 0; b < 32; b++) {
                     int8_t temp_w = w_row[(k + b)/4];

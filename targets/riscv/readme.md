@@ -14,7 +14,7 @@ The kernels use several software optimization techniques:
 
 2. **Batch Memory Loads**: Multiple packed values are loaded at once to reduce memory access overhead.
 
-3. **XOR + Popcount for Binary Networks**: 1-bit x 1-bit operations use XNOR and population count for efficient binary neural network computations.
+3. **XOR + Population Count for Binary Networks**: 1-bit x 1-bit operations use XNOR and population count for efficient binary neural network computations.
 
 4. **Register Reuse**: Variables are kept in registers where possible to minimize memory traffic.
 
