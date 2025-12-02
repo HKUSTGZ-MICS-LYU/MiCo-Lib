@@ -13,6 +13,7 @@
 Without hardware requirement:
 + `src/mico_unrolled`: Unrolled INT8 MatMul Kernels.
 + `src/im2col_conv2d`: Im2Col-based Conv2D Kernels.
++ `targets/riscv`: Optimized mixed precision operators for regular RISC-V CPUs.
 
 With hardware requirement:
 + `src/mico_simd`: SIMD-based MatMul Kernels.
