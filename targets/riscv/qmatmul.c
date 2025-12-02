@@ -17,6 +17,26 @@ static inline int software_popcount(qword x) {
     return x & 0x3F;
 }
 
+// Software count trailing zeros (ctz) implementation for portability
+// Returns the number of trailing zero bits in x (0-32)
+static inline int software_ctz(qword x) {
+    if (x == 0) return 32;
+    int n = 0;
+    if ((x & 0x0000FFFF) == 0) { n += 16; x >>= 16; }
+    if ((x & 0x000000FF) == 0) { n += 8;  x >>= 8;  }
+    if ((x & 0x0000000F) == 0) { n += 4;  x >>= 4;  }
+    if ((x & 0x00000003) == 0) { n += 2;  x >>= 2;  }
+    if ((x & 0x00000001) == 0) { n += 1; }
+    return n;
+}
+
+// Use compiler builtin if available, otherwise use software implementation
+#ifdef __GNUC__
+#define CTZ(x) __builtin_ctz(x)
+#else
+#define CTZ(x) software_ctz(x)
+#endif
+
 // Helper to safely load a qword handling potential alignment issues
 static inline qword safe_load_qword(const int8_t *ptr) {
     qword result;
@@ -157,37 +177,61 @@ void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 }
 
 // 8-bit activation x 1-bit weight MatMul
+// Optimized: For 1-bit weights, w_i is either +1 (bit=0) or -1 (bit=1)
+// sum(x_i * w_i) = sum(x_i where bit=0) - sum(x_i where bit=1)
+//               = total_sum - 2 * sum(x_i where bit=1)
 void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
 
-    const size_t unrolled_end = (in_features / 32) * 32;
+    const size_t word_count = in_features / 32;
 
     for (size_t i = 0; i < batch_size; i++) {
+        // Pre-compute the sum of all activations for this batch
+        int32_t total_sum = 0;
+        const int8_t *x_row = &x->data[i * in_features];
+        
+        // Compute total sum with unrolling
+        size_t k;
+        for (k = 0; k + 8 <= in_features; k += 8) {
+            total_sum += x_row[k] + x_row[k+1] + x_row[k+2] + x_row[k+3];
+            total_sum += x_row[k+4] + x_row[k+5] + x_row[k+6] + x_row[k+7];
+        }
+        for (; k < in_features; k++) {
+            total_sum += x_row[k];
+        }
+        
         for (size_t j = 0; j < out_features; j++) {
-            int32_t acc = 0;
-            const int8_t *x_row = &x->data[i * in_features];
             const int8_t *w_row = &w->data[j * in_features / 8];
             
-            // Process 32 elements at a time (4 bytes of packed weights)
-            for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword wb = safe_load_qword(w_row + k/8);
+            // Compute sum of x_i where w_i bit = 1 (meaning w_i = -1)
+            int32_t neg_sum = 0;
+            
+            // Process 32 elements at a time using word operations
+            for (size_t wk = 0; wk < word_count; wk++) {
+                qword wb = safe_load_qword(w_row + wk * 4);
+                size_t base = wk * 32;
                 
-                for (int b = 0; b < 32; b++) {
-                    int8_t bit = (wb >> b) & 1;
-                    acc += AMUX_1BIT(bit, x_row[k + b]);
+                // For each set bit in wb, add the corresponding x value
+                while (wb) {
+                    int bit_pos = CTZ(wb);  // Find lowest set bit
+                    neg_sum += x_row[base + bit_pos];
+                    wb &= wb - 1;  // Clear lowest set bit
                 }
             }
             
             // Handle remaining elements
-            for (size_t k = unrolled_end; k < in_features; k++) {
+            size_t remaining_start = word_count * 32;
+            for (k = remaining_start; k < in_features; k++) {
                 int8_t temp_w = w_row[k/8];
-                temp_w = EXTRACT_BIT(temp_w, k & 0b111);
-                acc += AMUX_1BIT(temp_w, x_row[k]);
+                if (EXTRACT_BIT(temp_w, k & 0b111)) {
+                    neg_sum += x_row[k];
+                }
             }
             
-            O[i * out_features + j] = acc;
+            // Final result: total_sum - 2 * neg_sum
+            O[i * out_features + j] = total_sum - 2 * neg_sum;
         }
     }
 }
@@ -311,45 +355,71 @@ void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 }
 
 // 4-bit activation x 1-bit weight MatMul
+// Optimized: For 1-bit weights, w_i is either +1 (bit=0) or -1 (bit=1)
+// sum(x_i * w_i) = sum(x_i where bit=0) - sum(x_i where bit=1)
+//               = total_sum - 2 * sum(x_i where bit=1)
 void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
 
-    const size_t unrolled_end = (in_features / 32) * 32;
+    const size_t word_count = in_features / 32;
 
     for (size_t i = 0; i < batch_size; i++) {
+        // Pre-compute the sum of all 4-bit activations for this batch
+        int32_t total_sum = 0;
+        const int8_t *x_row = &x->data[i * in_features / 2];
+        
+        // Compute total sum - process bytes (2 elements per byte)
+        for (size_t k = 0; k < in_features / 2; k++) {
+            int8_t byte = x_row[k];
+            total_sum += SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+            total_sum += SIGN_EXTEND_TO_INT8(byte >> 4, 4);
+        }
+        // Handle odd element count
+        if (in_features & 1) {
+            int8_t byte = x_row[in_features / 2];
+            total_sum += SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+        }
+        
         for (size_t j = 0; j < out_features; j++) {
-            int32_t acc = 0;
-            const int8_t *x_row = &x->data[i * in_features / 2];
             const int8_t *w_row = &w->data[j * in_features / 8];
             
-            // Process 32 elements at a time (16 bytes of 4-bit x, 4 bytes of 1-bit w)
-            for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword wb = safe_load_qword(w_row + k/8);
+            // Compute sum of x_i where w_i bit = 1 (meaning w_i = -1)
+            int32_t neg_sum = 0;
+            
+            // Process 32 elements at a time using word operations
+            for (size_t wk = 0; wk < word_count; wk++) {
+                qword wb = safe_load_qword(w_row + wk * 4);
+                size_t base = wk * 32;
                 
-                for (int b = 0; b < 32; b++) {
-                    int8_t temp_a = x_row[(k + b)/2];
-                    temp_a = EXTRACT_4BIT(temp_a, b & 0b1);
-                    temp_a = SIGN_EXTEND_TO_INT8(temp_a, 4);
-                    int8_t bit = (wb >> b) & 1;
-                    acc += temp_a * BIT_TO_INT8(bit);
+                // For each set bit in wb, add the corresponding x value
+                while (wb) {
+                    int bit_pos = CTZ(wb);  // Find lowest set bit
+                    size_t idx = base + bit_pos;
+                    int8_t byte = x_row[idx / 2];
+                    int8_t val = (idx & 1) ? SIGN_EXTEND_TO_INT8(byte >> 4, 4) 
+                                           : SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+                    neg_sum += val;
+                    wb &= wb - 1;  // Clear lowest set bit
                 }
             }
             
             // Handle remaining elements
-            for (size_t k = unrolled_end; k < in_features; k++) {
+            size_t remaining_start = word_count * 32;
+            for (size_t k = remaining_start; k < in_features; k++) {
                 int8_t temp_w = w_row[k/8];
-                temp_w = EXTRACT_BIT(temp_w, k & 0b111);
-                temp_w = BIT_TO_INT8(temp_w);
-                int8_t temp_a = x_row[k/2];
-                temp_a = EXTRACT_4BIT(temp_a, k & 0b1);
-                temp_a = SIGN_EXTEND_TO_INT8(temp_a, 4);
-                acc += temp_a * temp_w;
+                if (EXTRACT_BIT(temp_w, k & 0b111)) {
+                    int8_t byte = x_row[k / 2];
+                    int8_t val = (k & 1) ? SIGN_EXTEND_TO_INT8(byte >> 4, 4) 
+                                         : SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+                    neg_sum += val;
+                }
             }
             
-            O[i * out_features + j] = acc;
+            // Final result: total_sum - 2 * neg_sum
+            O[i * out_features + j] = total_sum - 2 * neg_sum;
         }
     }
 }
@@ -414,44 +484,73 @@ void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 }
 
 // 2-bit activation x 1-bit weight MatMul
+// Optimized: For 1-bit weights, w_i is either +1 (bit=0) or -1 (bit=1)
+// sum(x_i * w_i) = sum(x_i where bit=0) - sum(x_i where bit=1)
+//               = total_sum - 2 * sum(x_i where bit=1)
 void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
 
-    const size_t unrolled_end = (in_features / 32) * 32;
+    const size_t word_count = in_features / 32;
 
     for (size_t i = 0; i < batch_size; i++) {
+        // Pre-compute the sum of all 2-bit activations for this batch
+        int32_t total_sum = 0;
+        const int8_t *x_row = &x->data[i * in_features / 4];
+        
+        // Compute total sum - process bytes (4 elements per byte)
+        for (size_t k = 0; k < in_features / 4; k++) {
+            int8_t byte = x_row[k];
+            total_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 0));
+            total_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 1));
+            total_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 2));
+            total_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 3));
+        }
+        // Handle remaining elements
+        size_t remaining = in_features & 3;
+        if (remaining) {
+            int8_t byte = x_row[in_features / 4];
+            for (size_t r = 0; r < remaining; r++) {
+                total_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, r));
+            }
+        }
+        
         for (size_t j = 0; j < out_features; j++) {
-            int32_t acc = 0;
-            const int8_t *x_row = &x->data[i * in_features / 4];
             const int8_t *w_row = &w->data[j * in_features / 8];
             
-            // Process 32 elements at a time (8 bytes of 2-bit x, 4 bytes of 1-bit w)
-            for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword wb = safe_load_qword(w_row + k/8);
+            // Compute sum of x_i where w_i bit = 1 (meaning w_i = -1)
+            int32_t neg_sum = 0;
+            
+            // Process 32 elements at a time using word operations
+            for (size_t wk = 0; wk < word_count; wk++) {
+                qword wb = safe_load_qword(w_row + wk * 4);
+                size_t base = wk * 32;
                 
-                for (int b = 0; b < 32; b++) {
-                    int8_t temp_a = x_row[(k + b)/4];
-                    temp_a = EXTRACT_2BIT(temp_a, b & 0b11);
-                    temp_a = TWO_BIT_TO_INT8(temp_a);
-                    int8_t bit = (wb >> b) & 1;
-                    acc += temp_a * BIT_TO_INT8(bit);
+                // For each set bit in wb, add the corresponding x value
+                while (wb) {
+                    int bit_pos = CTZ(wb);  // Find lowest set bit
+                    size_t idx = base + bit_pos;
+                    int8_t byte = x_row[idx / 4];
+                    int8_t val = TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, idx & 0b11));
+                    neg_sum += val;
+                    wb &= wb - 1;  // Clear lowest set bit
                 }
             }
             
             // Handle remaining elements
-            for (size_t k = unrolled_end; k < in_features; k++) {
+            size_t remaining_start = word_count * 32;
+            for (size_t k = remaining_start; k < in_features; k++) {
                 int8_t temp_w = w_row[k/8];
-                temp_w = EXTRACT_BIT(temp_w, k & 0b111);
-                temp_w = BIT_TO_INT8(temp_w);
-                int8_t temp_a = x_row[k/4];
-                temp_a = EXTRACT_2BIT(temp_a, k & 0b11);
-                temp_a = TWO_BIT_TO_INT8(temp_a);
-                acc += temp_a * temp_w;
+                if (EXTRACT_BIT(temp_w, k & 0b111)) {
+                    int8_t byte = x_row[k / 4];
+                    int8_t val = TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, k & 0b11));
+                    neg_sum += val;
+                }
             }
             
-            O[i * out_features + j] = acc;
+            // Final result: total_sum - 2 * neg_sum
+            O[i * out_features + j] = total_sum - 2 * neg_sum;
         }
     }
 }
@@ -601,38 +700,59 @@ void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 }
 
 // 1-bit activation x 8-bit weight MatMul
+// Optimized: For 1-bit activations, x_i is either +1 (bit=0) or -1 (bit=1)
+// sum(x_i * w_i) = sum(w_i where bit=0) - sum(w_i where bit=1)
+//               = total_w_sum - 2 * sum(w_i where bit=1)
 void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
 
-    const size_t unrolled_end = (in_features / 32) * 32;
+    const size_t word_count = in_features / 32;
 
     for (size_t i = 0; i < batch_size; i++) {
+        const int8_t *x_row = &x->data[i * in_features / 8];
+        
         for (size_t j = 0; j < out_features; j++) {
-            int32_t acc = 0;
-            const int8_t *x_row = &x->data[i * in_features / 8];
             const int8_t *w_row = &w->data[j * in_features];
             
-            // Process 32 elements at a time
-            for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword xb = safe_load_qword(x_row + k/8);
+            // Compute sum of all weights and sum of weights where x bit = 1
+            int32_t total_w_sum = 0;
+            int32_t neg_w_sum = 0;
+            
+            // Process 32 elements at a time using word operations
+            for (size_t wk = 0; wk < word_count; wk++) {
+                qword xb = safe_load_qword(x_row + wk * 4);
+                size_t base = wk * 32;
                 
-                for (int b = 0; b < 32; b++) {
-                    int8_t bit = (xb >> b) & 1;
-                    acc += BIT_TO_INT8(bit) * w_row[k + b];
+                // Sum weights with unrolling
+                for (int b = 0; b < 32; b += 8) {
+                    total_w_sum += w_row[base + b] + w_row[base + b + 1] + 
+                                   w_row[base + b + 2] + w_row[base + b + 3];
+                    total_w_sum += w_row[base + b + 4] + w_row[base + b + 5] + 
+                                   w_row[base + b + 6] + w_row[base + b + 7];
+                }
+                
+                // For each set bit in xb, add the corresponding w value
+                while (xb) {
+                    int bit_pos = CTZ(xb);  // Find lowest set bit
+                    neg_w_sum += w_row[base + bit_pos];
+                    xb &= xb - 1;  // Clear lowest set bit
                 }
             }
             
             // Handle remaining elements
-            for (size_t k = unrolled_end; k < in_features; k++) {
+            size_t remaining_start = word_count * 32;
+            for (size_t k = remaining_start; k < in_features; k++) {
+                total_w_sum += w_row[k];
                 int8_t temp_a = x_row[k/8];
-                temp_a = EXTRACT_BIT(temp_a, k & 0b111);
-                temp_a = BIT_TO_INT8(temp_a);
-                acc += temp_a * w_row[k];
+                if (EXTRACT_BIT(temp_a, k & 0b111)) {
+                    neg_w_sum += w_row[k];
+                }
             }
             
-            O[i * out_features + j] = acc;
+            // Final result: total_w_sum - 2 * neg_w_sum
+            O[i * out_features + j] = total_w_sum - 2 * neg_w_sum;
         }
     }
 }
@@ -701,87 +821,138 @@ void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 }
 
 // 1-bit activation x 4-bit weight MatMul
+// Optimized: For 1-bit activations, x_i is either +1 (bit=0) or -1 (bit=1)
+// sum(x_i * w_i) = sum(w_i where bit=0) - sum(w_i where bit=1)
+//               = total_w_sum - 2 * sum(w_i where bit=1)
 void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
 
-    const size_t unrolled_end = (in_features / 32) * 32;
+    const size_t word_count = in_features / 32;
 
     for (size_t i = 0; i < batch_size; i++) {
+        const int8_t *x_row = &x->data[i * in_features / 8];
+        
         for (size_t j = 0; j < out_features; j++) {
-            int32_t acc = 0;
-            const int8_t *x_row = &x->data[i * in_features / 8];
             const int8_t *w_row = &w->data[j * in_features / 2];
             
-            // Process 32 elements at a time
-            for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword xb = safe_load_qword(x_row + k/8);
+            // Compute sum of all 4-bit weights
+            int32_t total_w_sum = 0;
+            for (size_t k = 0; k < in_features / 2; k++) {
+                int8_t byte = w_row[k];
+                total_w_sum += SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+                total_w_sum += SIGN_EXTEND_TO_INT8(byte >> 4, 4);
+            }
+            if (in_features & 1) {
+                int8_t byte = w_row[in_features / 2];
+                total_w_sum += SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+            }
+            
+            // Compute sum of weights where x bit = 1
+            int32_t neg_w_sum = 0;
+            
+            // Process 32 elements at a time using word operations
+            for (size_t wk = 0; wk < word_count; wk++) {
+                qword xb = safe_load_qword(x_row + wk * 4);
+                size_t base = wk * 32;
                 
-                for (int b = 0; b < 32; b++) {
-                    int8_t temp_w = w_row[(k + b)/2];
-                    temp_w = EXTRACT_4BIT(temp_w, b & 0b1);
-                    temp_w = SIGN_EXTEND_TO_INT8(temp_w, 4);
-                    int8_t bit = (xb >> b) & 1;
-                    acc += BIT_TO_INT8(bit) * temp_w;
+                // For each set bit in xb, add the corresponding w value
+                while (xb) {
+                    int bit_pos = CTZ(xb);  // Find lowest set bit
+                    size_t idx = base + bit_pos;
+                    int8_t byte = w_row[idx / 2];
+                    int8_t val = (idx & 1) ? SIGN_EXTEND_TO_INT8(byte >> 4, 4)
+                                           : SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+                    neg_w_sum += val;
+                    xb &= xb - 1;  // Clear lowest set bit
                 }
             }
             
             // Handle remaining elements
-            for (size_t k = unrolled_end; k < in_features; k++) {
+            size_t remaining_start = word_count * 32;
+            for (size_t k = remaining_start; k < in_features; k++) {
                 int8_t temp_a = x_row[k/8];
-                temp_a = EXTRACT_BIT(temp_a, k & 0b111);
-                temp_a = BIT_TO_INT8(temp_a);
-                int8_t temp_w = w_row[k/2];
-                temp_w = EXTRACT_4BIT(temp_w, k & 0b1);
-                temp_w = SIGN_EXTEND_TO_INT8(temp_w, 4);
-                acc += temp_a * temp_w;
+                if (EXTRACT_BIT(temp_a, k & 0b111)) {
+                    int8_t byte = w_row[k / 2];
+                    int8_t val = (k & 1) ? SIGN_EXTEND_TO_INT8(byte >> 4, 4)
+                                         : SIGN_EXTEND_TO_INT8(byte & 0x0F, 4);
+                    neg_w_sum += val;
+                }
             }
             
-            O[i * out_features + j] = acc;
+            // Final result: total_w_sum - 2 * neg_w_sum
+            O[i * out_features + j] = total_w_sum - 2 * neg_w_sum;
         }
     }
 }
 
 // 1-bit activation x 2-bit weight MatMul
+// Optimized: For 1-bit activations, x_i is either +1 (bit=0) or -1 (bit=1)
+// sum(x_i * w_i) = sum(w_i where bit=0) - sum(w_i where bit=1)
+//               = total_w_sum - 2 * sum(w_i where bit=1)
 void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
 
-    const size_t unrolled_end = (in_features / 32) * 32;
+    const size_t word_count = in_features / 32;
 
     for (size_t i = 0; i < batch_size; i++) {
+        const int8_t *x_row = &x->data[i * in_features / 8];
+        
         for (size_t j = 0; j < out_features; j++) {
-            int32_t acc = 0;
-            const int8_t *x_row = &x->data[i * in_features / 8];
             const int8_t *w_row = &w->data[j * in_features / 4];
             
-            // Process 32 elements at a time
-            for (size_t k = 0; k < unrolled_end; k += 32) {
-                qword xb = safe_load_qword(x_row + k/8);
+            // Compute sum of all 2-bit weights
+            int32_t total_w_sum = 0;
+            for (size_t k = 0; k < in_features / 4; k++) {
+                int8_t byte = w_row[k];
+                total_w_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 0));
+                total_w_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 1));
+                total_w_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 2));
+                total_w_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, 3));
+            }
+            size_t remaining = in_features & 3;
+            if (remaining) {
+                int8_t byte = w_row[in_features / 4];
+                for (size_t r = 0; r < remaining; r++) {
+                    total_w_sum += TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, r));
+                }
+            }
+            
+            // Compute sum of weights where x bit = 1
+            int32_t neg_w_sum = 0;
+            
+            // Process 32 elements at a time using word operations
+            for (size_t wk = 0; wk < word_count; wk++) {
+                qword xb = safe_load_qword(x_row + wk * 4);
+                size_t base = wk * 32;
                 
-                for (int b = 0; b < 32; b++) {
-                    int8_t temp_w = w_row[(k + b)/4];
-                    temp_w = EXTRACT_2BIT(temp_w, b & 0b11);
-                    temp_w = TWO_BIT_TO_INT8(temp_w);
-                    int8_t bit = (xb >> b) & 1;
-                    acc += BIT_TO_INT8(bit) * temp_w;
+                // For each set bit in xb, add the corresponding w value
+                while (xb) {
+                    int bit_pos = CTZ(xb);  // Find lowest set bit
+                    size_t idx = base + bit_pos;
+                    int8_t byte = w_row[idx / 4];
+                    int8_t val = TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, idx & 0b11));
+                    neg_w_sum += val;
+                    xb &= xb - 1;  // Clear lowest set bit
                 }
             }
             
             // Handle remaining elements
-            for (size_t k = unrolled_end; k < in_features; k++) {
+            size_t remaining_start = word_count * 32;
+            for (size_t k = remaining_start; k < in_features; k++) {
                 int8_t temp_a = x_row[k/8];
-                temp_a = EXTRACT_BIT(temp_a, k & 0b111);
-                temp_a = BIT_TO_INT8(temp_a);
-                int8_t temp_w = w_row[k/4];
-                temp_w = EXTRACT_2BIT(temp_w, k & 0b11);
-                temp_w = TWO_BIT_TO_INT8(temp_w);
-                acc += temp_a * temp_w;
+                if (EXTRACT_BIT(temp_a, k & 0b111)) {
+                    int8_t byte = w_row[k / 4];
+                    int8_t val = TWO_BIT_TO_INT8(EXTRACT_2BIT(byte, k & 0b11));
+                    neg_w_sum += val;
+                }
             }
             
-            O[i * out_features + j] = acc;
+            // Final result: total_w_sum - 2 * neg_w_sum
+            O[i * out_features + j] = total_w_sum - 2 * neg_w_sum;
         }
     }
 }
