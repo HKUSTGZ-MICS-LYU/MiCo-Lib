@@ -47,31 +47,79 @@ static inline qword safe_load_qword(const int8_t *ptr) {
     return result;
 }
 
-// Optimized 8-bit x 8-bit MatMul with loop unrolling
+// Optimized 8-bit x 8-bit MatMul with 5x row unrolling (inspired by muriscv-nn)
+// This technique exposes more instruction-level parallelism by processing
+// 5 output rows simultaneously, reducing loop overhead and enabling better
+// register utilization.
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
 
-    const size_t unrolled_end = (in_features / MATMUL_UNROLL_FACTOR) * MATMUL_UNROLL_FACTOR;
+    const size_t col_unrolled_end = (in_features / MATMUL_UNROLL_FACTOR) * MATMUL_UNROLL_FACTOR;
 
     for (size_t i = 0; i < batch_size; i++) {
-        for (size_t j = 0; j < out_features; j++) {
+        const int8_t *x_row = &x->data[i * in_features];
+        
+        // Process 5 output rows at a time for better ILP
+        const size_t row_loop_cnt = out_features / 5;
+        size_t j = 0;
+        
+        for (size_t j_loop = 0; j_loop < row_loop_cnt; j_loop++) {
+            const int8_t *w_row_0 = &w->data[j * in_features];
+            const int8_t *w_row_1 = &w->data[(j + 1) * in_features];
+            const int8_t *w_row_2 = &w->data[(j + 2) * in_features];
+            const int8_t *w_row_3 = &w->data[(j + 3) * in_features];
+            const int8_t *w_row_4 = &w->data[(j + 4) * in_features];
+            
+            int32_t acc0 = 0, acc1 = 0, acc2 = 0, acc3 = 0, acc4 = 0;
+            
+            // 4x column unrolling with 5x row unrolling
+            for (size_t k = 0; k < col_unrolled_end; k += MATMUL_UNROLL_FACTOR) {
+                const int8_t x0 = x_row[k];
+                const int8_t x1 = x_row[k+1];
+                const int8_t x2 = x_row[k+2];
+                const int8_t x3 = x_row[k+3];
+                
+                acc0 += x0 * w_row_0[k] + x1 * w_row_0[k+1] + x2 * w_row_0[k+2] + x3 * w_row_0[k+3];
+                acc1 += x0 * w_row_1[k] + x1 * w_row_1[k+1] + x2 * w_row_1[k+2] + x3 * w_row_1[k+3];
+                acc2 += x0 * w_row_2[k] + x1 * w_row_2[k+1] + x2 * w_row_2[k+2] + x3 * w_row_2[k+3];
+                acc3 += x0 * w_row_3[k] + x1 * w_row_3[k+1] + x2 * w_row_3[k+2] + x3 * w_row_3[k+3];
+                acc4 += x0 * w_row_4[k] + x1 * w_row_4[k+1] + x2 * w_row_4[k+2] + x3 * w_row_4[k+3];
+            }
+            
+            // Handle remaining columns
+            for (size_t k = col_unrolled_end; k < in_features; k++) {
+                const int8_t xv = x_row[k];
+                acc0 += xv * w_row_0[k];
+                acc1 += xv * w_row_1[k];
+                acc2 += xv * w_row_2[k];
+                acc3 += xv * w_row_3[k];
+                acc4 += xv * w_row_4[k];
+            }
+            
+            O[i * out_features + j] = acc0;
+            O[i * out_features + j + 1] = acc1;
+            O[i * out_features + j + 2] = acc2;
+            O[i * out_features + j + 3] = acc3;
+            O[i * out_features + j + 4] = acc4;
+            j += 5;
+        }
+        
+        // Handle remaining output rows
+        for (; j < out_features; j++) {
             int32_t acc = 0;
-            const int8_t *x_row = &x->data[i * in_features];
             const int8_t *w_row = &w->data[j * in_features];
             
-            // Unrolled loop for better pipeline utilization
-            for (size_t k = 0; k < unrolled_end; k += MATMUL_UNROLL_FACTOR) {
+            for (size_t k = 0; k < col_unrolled_end; k += MATMUL_UNROLL_FACTOR) {
                 acc += x_row[k] * w_row[k];
                 acc += x_row[k+1] * w_row[k+1];
                 acc += x_row[k+2] * w_row[k+2];
                 acc += x_row[k+3] * w_row[k+3];
             }
             
-            // Handle remaining elements
-            for (size_t k = unrolled_end; k < in_features; k++) {
+            for (size_t k = col_unrolled_end; k < in_features; k++) {
                 acc += x_row[k] * w_row[k];
             }
             

@@ -8,22 +8,24 @@ Unlike the VexiiRiscv target (`targets/vexii/mico32` and `targets/vexii/mico64`)
 
 ## Optimizations
 
-The kernels use several software optimization techniques:
+The kernels use several software optimization techniques, inspired by best practices from projects like [muriscv-nn](https://github.com/tum-ei-eda/muriscv-nn):
 
-1. **Loop Unrolling**: Inner loops are unrolled to reduce loop overhead and improve instruction-level parallelism.
+1. **5x Row Unrolling**: Processing 5 output rows simultaneously to expose more instruction-level parallelism (ILP), similar to the approach used in muriscv-nn's scalar fallback path.
 
-2. **Batch Memory Loads**: Multiple packed values are loaded at once to reduce memory access overhead.
+2. **4x Column Unrolling**: Inner loops are unrolled by 4 to reduce loop overhead and improve pipeline utilization.
 
-3. **XOR + Population Count for Binary Networks**: 1-bit x 1-bit operations use XNOR and population count for efficient binary neural network computations.
+3. **Batch Memory Loads**: Multiple packed values are loaded at once to reduce memory access overhead.
 
-4. **Register Reuse**: Variables are kept in registers where possible to minimize memory traffic.
+4. **XOR + Population Count for Binary Networks**: 1-bit x 1-bit operations use XNOR and population count for efficient binary neural network computations.
 
-5. **1-bit Weight/Activation Optimization**: For operations involving 1-bit values, we use the mathematical identity:
+5. **Register Reuse**: Variables are kept in registers where possible to minimize memory traffic.
+
+6. **1-bit Weight/Activation Optimization**: For operations involving 1-bit values, we use the mathematical identity:
    - For 1-bit weights: `sum(x_i * w_i) = total_sum - 2 * sum(x_i where w_i = -1)`
    - This eliminates per-bit multiplication and uses efficient bit scanning (CTZ + clear lowest bit)
    - Pre-computed activation sums are reused across output features
 
-6. **Sparse Bit Processing**: Instead of iterating through all bits, we only process set bits using `while(wb) { pos = ctz(wb); wb &= wb - 1; }` pattern, which is faster when weights are sparse.
+7. **Sparse Bit Processing**: Instead of iterating through all bits, we only process set bits using `while(wb) { pos = ctz(wb); wb &= wb - 1; }` pattern, which is faster when weights are sparse.
 
 ## Performance Characteristics
 
@@ -36,7 +38,7 @@ Low bitwidth operators are optimized to be faster than INT8 baseline when:
 
 All standard MiCo mixed precision matmul operations are supported:
 
-- `MiCo_Q8_MatMul`: 8-bit x 8-bit
+- `MiCo_Q8_MatMul`: 8-bit x 8-bit *(5x row unrolling)*
 - `MiCo_Q8x4_MatMul`: 8-bit activation x 4-bit weight
 - `MiCo_Q8x2_MatMul`: 8-bit activation x 2-bit weight
 - `MiCo_Q8x1_MatMul`: 8-bit activation x 1-bit weight *(optimized)*
@@ -52,6 +54,10 @@ All standard MiCo mixed precision matmul operations are supported:
 - `MiCo_Q1x8_MatMul`: 1-bit activation x 8-bit weight *(optimized)*
 - `MiCo_Q1x4_MatMul`: 1-bit activation x 4-bit weight *(optimized)*
 - `MiCo_Q1x2_MatMul`: 1-bit activation x 2-bit weight *(optimized)*
+
+## References
+
+- [muriscv-nn](https://github.com/tum-ei-eda/muriscv-nn) - RISC-V optimized neural network kernels from TUM
 
 ## Usage
 
