@@ -1,0 +1,48 @@
+# Simple test Makefile for quantized pooling
+# This builds standalone test and benchmark executables
+
+CC = gcc
+CFLAGS = -O2 -Wall -Wextra -I../include
+LDFLAGS = -lm
+
+# Source directories
+MICO_DIR = ..
+SRC_DIR = $(MICO_DIR)/src
+MICO_SRC_DIR = $(SRC_DIR)/mico
+
+# Common sources
+COMMON_SOURCES = \
+	$(SRC_DIR)/utils.c \
+	$(SRC_DIR)/im2col.c \
+	$(SRC_DIR)/profile.c \
+	$(SRC_DIR)/profilers.c \
+	$(MICO_SRC_DIR)/qpooling.c \
+	$(MICO_SRC_DIR)/quant.c \
+	$(MICO_SRC_DIR)/bitconv2d.c \
+	$(MICO_SRC_DIR)/qmatmul.c \
+	$(MICO_SRC_DIR)/qbuffer.c
+
+# Targets
+TEST_TARGET = test_qpooling
+BENCH_TARGET = bench_qpooling
+
+all: $(TEST_TARGET) $(BENCH_TARGET)
+
+# Test with reference implementations
+$(TEST_TARGET): test_qpooling.c $(COMMON_SOURCES)
+	$(CC) $(CFLAGS) -DREF $^ -o $@ $(LDFLAGS)
+
+# Benchmark without reference implementations
+$(BENCH_TARGET): bench_qpooling.c $(COMMON_SOURCES)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
+
+bench: $(BENCH_TARGET)
+	./$(BENCH_TARGET)
+
+clean:
+	rm -f $(TEST_TARGET) $(BENCH_TARGET)
+
+.PHONY: all test bench clean
