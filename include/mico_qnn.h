@@ -27,6 +27,15 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 
+// Quantized Pooling Functions (im2col + matmul based)
+// These functions perform pooling on quantized int8 inputs, producing quantized int8 outputs
+// Layout: NCHW (batch, channels, height, width)
+// Supported: kernel_size 2x2/3x3, stride 1/2, padding 0/1
+void MiCo_Q8_AvgPool2D(Tensor4D_Q8 *y, const Tensor4D_Q8 *x, 
+    const size_t kernel_size, const size_t stride, const size_t padding);
+void MiCo_Q8_MaxPool2D(Tensor4D_Q8 *y, const Tensor4D_Q8 *x, 
+    const size_t kernel_size, const size_t stride, const size_t padding);
+
 // Reference implementations for testing
 #ifdef REF
 void MiCo_Q8_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
@@ -51,6 +60,12 @@ void MiCo_Q2x4_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w
 void MiCo_Q1x8_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x4_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x2_MatMul_Ref(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+// Reference implementations for quantized pooling
+void MiCo_Q8_AvgPool2D_Ref(Tensor4D_Q8 *y, const Tensor4D_Q8 *x, 
+    const size_t kernel_size, const size_t stride, const size_t padding);
+void MiCo_Q8_MaxPool2D_Ref(Tensor4D_Q8 *y, const Tensor4D_Q8 *x, 
+    const size_t kernel_size, const size_t stride, const size_t padding);
 #endif
 
 // Helper Macros

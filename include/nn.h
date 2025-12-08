@@ -154,6 +154,14 @@ void im2col_block_T_aligned(const float* data_im, const int channels,
     const int stride, const int pad, float* data_col,
     const int row_offset, const int num_rows, const int out_width);
 
+// Im2Col for quantized pooling (int8)
+// For pooling, im2col transforms input windows into columns where each column
+// represents a pooling window. This allows pooling to be expressed as operations
+// on these columns (e.g., average or max over column elements).
+void im2col_pool_q8(const int8_t* data_im, const int channels,
+    const int height, const int width, const int kernel_size,
+    const int stride, const int pad, int8_t* data_col);
+
 // Multi-Head Attention Functions
 typedef struct MHA_Config
 {
