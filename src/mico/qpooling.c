@@ -124,20 +124,16 @@ void MiCo_Q8_AvgPool2D(Tensor4D_Q8 *y, const Tensor4D_Q8 *x,
                     const int col_offset = (oh * out_w + ow) * window_size;
                     
                     for (size_t k = 0; k < window_size; k++) {
-                        int8_t val = col[col_offset + k];
-                        // Count valid values (not padding)
-                        // We use -128 for padding in im2col_pool_q8
-                        if (val != -128 || (padding == 0)) {
-                            // Check if this position is actually within valid input
-                            int kh = k / kernel_size;
-                            int kw = k % kernel_size;
-                            int ih = oh * stride + kh - padding;
-                            int iw = ow * stride + kw - padding;
-                            
-                            if (ih >= 0 && ih < (int)in_h && iw >= 0 && iw < (int)in_w) {
-                                sum += val;
-                                valid_count++;
-                            }
+                        // Check if this position is within valid input (not padding)
+                        int kh = k / kernel_size;
+                        int kw = k % kernel_size;
+                        int ih = oh * stride + kh - padding;
+                        int iw = ow * stride + kw - padding;
+                        
+                        if (ih >= 0 && ih < (int)in_h && iw >= 0 && iw < (int)in_w) {
+                            int8_t val = col[col_offset + k];
+                            sum += val;
+                            valid_count++;
                         }
                     }
                     

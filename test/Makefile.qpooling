@@ -1,0 +1,38 @@
+# Simple test Makefile for quantized pooling
+# This builds a standalone test executable
+
+CC = gcc
+CFLAGS = -O2 -Wall -Wextra -I../include
+LDFLAGS = -lm
+
+# Source directories
+MICO_DIR = ..
+SRC_DIR = $(MICO_DIR)/src
+MICO_SRC_DIR = $(SRC_DIR)/mico
+
+# Sources
+SOURCES = \
+	$(SRC_DIR)/utils.c \
+	$(SRC_DIR)/im2col.c \
+	$(MICO_SRC_DIR)/qpooling.c \
+	$(MICO_SRC_DIR)/quant.c \
+	test_qpooling.c
+
+# Build with reference implementations for testing
+CFLAGS += -DREF
+
+# Target
+TARGET = test_qpooling
+
+all: $(TARGET)
+
+$(TARGET): $(SOURCES)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+test: $(TARGET)
+	./$(TARGET)
+
+clean:
+	rm -f $(TARGET)
+
+.PHONY: all test clean
