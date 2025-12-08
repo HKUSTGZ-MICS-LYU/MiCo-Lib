@@ -1,0 +1,22 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+
+# Executables
+test/test_qpooling
+test/test_*
+!test/test_*.c
+!test/test_*.h
+
+# Editor files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.iml
