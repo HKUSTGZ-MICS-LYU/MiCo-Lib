@@ -6,9 +6,12 @@
 
 # Executables
 test/test_qpooling
+test/bench_qpooling
 test/test_*
+test/bench_*
 !test/test_*.c
 !test/test_*.h
+!test/bench_*.c
 
 # Editor files
 *.swp

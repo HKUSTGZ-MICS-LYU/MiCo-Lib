@@ -104,6 +104,7 @@ void MiCo_Q8_AvgPool2D(Tensor4D_Q8 *y, const Tensor4D_Q8 *x,
     const size_t window_size = kernel_size * kernel_size;
     const size_t col_size = out_h * out_w * window_size;
     int8_t* col = (int8_t*)malloc(col_size * sizeof(int8_t));
+    MiCo_assert(col != NULL, "[Q8_AvgPool2D] Memory allocation failed!");
     
     // Process each batch and channel
     for (size_t b = 0; b < batch_size; b++) {
@@ -197,6 +198,7 @@ void MiCo_Q8_MaxPool2D(Tensor4D_Q8 *y, const Tensor4D_Q8 *x,
     const size_t window_size = kernel_size * kernel_size;
     const size_t col_size = out_h * out_w * window_size;
     int8_t* col = (int8_t*)malloc(col_size * sizeof(int8_t));
+    MiCo_assert(col != NULL, "[Q8_MaxPool2D] Memory allocation failed!");
     
     // Process each batch and channel
     for (size_t b = 0; b < batch_size; b++) {
