@@ -94,7 +94,7 @@ void MiCo_groupwise_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
         MiCo_2D_FP32toQ1(&qx, x);
         break;
       default:
-        printf("[Warning] Unsupported Weight Quantization - %d\n", aq);
+        printf("[Warning] Unsupported Activation Quantization - %d\n", aq);
         break;
     }
     QUANT_TIMER += MiCo_time() - start;
