@@ -14,8 +14,13 @@ MICO_SRC_DIR = $(SRC_DIR)/mico
 COMMON_SOURCES = \
 	$(SRC_DIR)/utils.c \
 	$(SRC_DIR)/im2col.c \
+	$(SRC_DIR)/profile.c \
+	$(SRC_DIR)/profilers.c \
 	$(MICO_SRC_DIR)/qpooling.c \
-	$(MICO_SRC_DIR)/quant.c
+	$(MICO_SRC_DIR)/quant.c \
+	$(MICO_SRC_DIR)/bitconv2d.c \
+	$(MICO_SRC_DIR)/qmatmul.c \
+	$(MICO_SRC_DIR)/qbuffer.c
 
 # Targets
 TEST_TARGET = test_qpooling

@@ -1,7 +1,9 @@
 #include "mico_qnn.h"
+#include "mico_nn.h"
 #include "mico_quant.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // Im2Col transformation for quantized pooling
 // This function transforms the input tensor into a column matrix where each column
@@ -57,15 +59,18 @@ void im2col_pool_q8(const int8_t* data_im, const int channels,
     }
 }
 
-// Quantized Average Pooling using im2col + averaging
+// Quantized Average Pooling using im2col + quantized matmul
 // 
-// This implementation uses im2col to transform pooling windows into columns,
-// then computes the average over each column. The result is requantized to int8.
+// This implementation expresses average pooling as im2col followed by
+// matrix multiplication with a uniform averaging kernel. This reuses the
+// optimized quantized matmul backend infrastructure from BitConv2D.
 //
-// Input/Output quantization:
-//   - Input scale is preserved from x->scale
-//   - Output uses the same scale as input (no rescaling needed for average)
-//   - Accumulation uses int32 to prevent overflow
+// For a K×K pooling kernel, we create a weight matrix where each row
+// contains K² values of 1, then apply quantized matmul and scale by 1/K².
+//
+// Input/Output:
+//   - Input: Tensor4D_Q8 with per-tensor scale
+//   - Output: Tensor4D_Q8 with same scale as input
 //
 // Supported configurations:
 //   - kernel_size: 2 or 3
@@ -73,6 +78,144 @@ void im2col_pool_q8(const int8_t* data_im, const int channels,
 //   - padding: 0 or 1
 //   - Layout: NCHW
 void MiCo_Q8_AvgPool2D(Tensor4D_Q8 *y, const Tensor4D_Q8 *x, 
+                       const size_t kernel_size, const size_t stride, const size_t padding) {
+    
+    // Validate supported configurations
+    MiCo_assert(kernel_size == 2 || kernel_size == 3, 
+        "[Q8_AvgPool2D] Unsupported kernel size! Only 2 and 3 are supported.");
+    MiCo_assert(stride == 1 || stride == 2, 
+        "[Q8_AvgPool2D] Unsupported stride! Only 1 and 2 are supported.");
+    MiCo_assert(padding == 0 || padding == 1, 
+        "[Q8_AvgPool2D] Unsupported padding! Only 0 and 1 are supported.");
+    
+    const size_t batch_size = x->shape[0];
+    const size_t in_c = x->shape[1];
+    const size_t in_h = x->shape[2];
+    const size_t in_w = x->shape[3];
+    
+    const size_t out_c = y->shape[1];
+    const size_t out_h = (in_h + 2 * padding - kernel_size) / stride + 1;
+    const size_t out_w = (in_w + 2 * padding - kernel_size) / stride + 1;
+    
+    MiCo_assert(out_h == y->shape[2] && out_w == y->shape[3], 
+        "[Q8_AvgPool2D] Output shape mismatch!");
+    MiCo_assert(out_c == in_c, 
+        "[Q8_AvgPool2D] Channel count mismatch!");
+    
+    // Preserve input scale for output
+    y->scale = x->scale;
+    
+    // Create averaging weight matrix: [1, kernel_size²] filled with 1s
+    // When multiplied with im2col output and scaled by 1/K², gives average
+    const size_t window_size = kernel_size * kernel_size;
+    const float divisor = (float)window_size;
+    
+    // Allocate buffers
+    const size_t col_size = out_h * out_w * window_size;
+    int8_t* col = (int8_t*)malloc(col_size * sizeof(int8_t));
+    MiCo_assert(col != NULL, "[Q8_AvgPool2D] Memory allocation failed for col!");
+    
+    int32_t* matmul_out = (int32_t*)malloc(out_h * out_w * sizeof(int32_t));
+    MiCo_assert(matmul_out != NULL, "[Q8_AvgPool2D] Memory allocation failed for matmul_out!");
+    
+    // Create averaging weight: a row vector of 1s (in quantized form)
+    Tensor2D_Q8 avg_weight;
+    avg_weight.shape[0] = 1;  // 1 output per pooling window
+    avg_weight.shape[1] = window_size;
+    avg_weight.data = (int8_t*)malloc(window_size * sizeof(int8_t));
+    MiCo_assert(avg_weight.data != NULL, "[Q8_AvgPool2D] Memory allocation failed for weight!");
+    avg_weight.scale = 1.0f;  // Unit scale for summing
+    avg_weight.wq = 8;
+    
+    // Fill weight with 1s (for summing)
+    for (size_t i = 0; i < window_size; i++) {
+        avg_weight.data[i] = 1;
+    }
+    
+    // Process each batch and channel
+    for (size_t b = 0; b < batch_size; b++) {
+        for (size_t c = 0; c < in_c; c++) {
+            // Get pointer to current channel
+            const int8_t* img_channel = x->data + (b * in_c * in_h * in_w) + (c * in_h * in_w);
+            
+            // Apply im2col for this channel
+            im2col_pool_q8(img_channel, 1, in_h, in_w, kernel_size, stride, padding, col);
+            
+            // For padded pooling, zero out padded values before matmul
+            // so they don't contribute to the sum
+            if (padding > 0) {
+                for (size_t oh = 0; oh < out_h; oh++) {
+                    for (size_t ow = 0; ow < out_w; ow++) {
+                        size_t col_offset = (oh * out_w + ow) * window_size;
+                        for (size_t k = 0; k < window_size; k++) {
+                            int kh = k / kernel_size;
+                            int kw = k % kernel_size;
+                            int ih = oh * stride + kh - padding;
+                            int iw = ow * stride + kw - padding;
+                            
+                            // Zero out padded positions
+                            if (ih < 0 || ih >= (int)in_h || iw < 0 || iw >= (int)in_w) {
+                                col[col_offset + k] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Create tensor for im2col output
+            Tensor2D_Q8 col_tensor;
+            col_tensor.shape[0] = out_h * out_w;
+            col_tensor.shape[1] = window_size;
+            col_tensor.data = col;
+            col_tensor.scale = 1.0f;  // Matches input quantization
+            col_tensor.wq = 8;
+            
+            // Perform quantized matmul: matmul_out = col_tensor * avg_weight^T
+            // This sums the values in each pooling window
+            MiCo_Q8_MatMul(matmul_out, &col_tensor, &avg_weight);
+            
+            // Convert matmul output to averaged output
+            for (size_t oh = 0; oh < out_h; oh++) {
+                for (size_t ow = 0; ow < out_w; ow++) {
+                    size_t idx = oh * out_w + ow;
+                    
+                    // Count valid (non-padded) elements in this window
+                    int valid_count = 0;
+                    for (size_t k = 0; k < window_size; k++) {
+                        int kh = k / kernel_size;
+                        int kw = k % kernel_size;
+                        int ih = oh * stride + kh - padding;
+                        int iw = ow * stride + kw - padding;
+                        
+                        if (ih >= 0 && ih < (int)in_h && iw >= 0 && iw < (int)in_w) {
+                            valid_count++;
+                        }
+                    }
+                    
+                    // Average: divide sum by number of valid elements
+                    int8_t avg;
+                    if (valid_count > 0) {
+                        int32_t sum = matmul_out[idx];
+                        avg = (int8_t)(sum / valid_count);
+                    } else {
+                        avg = 0;
+                    }
+                    
+                    // Store result
+                    y->data[b * out_c * out_h * out_w + c * out_h * out_w + idx] = avg;
+                }
+            }
+        }
+    }
+    
+    // Cleanup
+    free(col);
+    free(matmul_out);
+    free(avg_weight.data);
+}
+
+// Alternative direct implementation (kept for reference/fallback)
+void MiCo_Q8_AvgPool2D_Direct(Tensor4D_Q8 *y, const Tensor4D_Q8 *x, 
                        const size_t kernel_size, const size_t stride, const size_t padding) {
     
     // Validate supported configurations

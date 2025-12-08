@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the quantized pooling implementation in MiCo-Lib, which implements 2D pooling operations (average and max) for int8 quantized tensors using an im2col-based approach.
+This document describes the quantized pooling implementation in MiCo-Lib, which implements 2D pooling operations (average and max) for int8 quantized tensors. The average pooling implementation reuses the existing BitConv2D infrastructure (im2col + quantized matmul) for optimal performance.
 
 ## API
 
@@ -66,18 +66,36 @@ This is valid because:
 
 ## Implementation Details
 
+### Average Pooling: Reusing BitConv2D Infrastructure
+
+The average pooling implementation leverages the existing BitConv2D infrastructure (im2col + quantized matmul) for optimal performance:
+
+1. **Im2Col Transformation**: Uses `im2col_pool_q8` to transform pooling windows into column format
+2. **Quantized MatMul**: Uses `MiCo_Q8_MatMul` with a uniform weight vector (all 1s) to sum window elements
+3. **Averaging**: Divides the sum by the count of valid (non-padded) elements
+
+This approach:
+- Reuses the heavily optimized quantized matmul backend
+- Shares code with BitConv2D for better maintainability
+- Achieves comparable performance to specialized pooling kernels
+
 ### Im2Col Transformation
 
-The `im2col_pool_q8` function transforms the input tensor into a column matrix where each column contains the elements of one pooling window:
+The `im2col_pool_q8` function transforms the input tensor into a column matrix where each row contains the elements of one pooling window:
 
 ```
 Input (NCHW):          Im2Col Output:
-[C, H, W]       ->     [out_h*out_w, C*kernel_size*kernel_size]
+[C, H, W]       ->     [out_h*out_w, kernel_size*kernel_size]
 ```
 
-This transformation allows pooling to be expressed as operations on columns:
-- **Average pooling**: Sum over column elements and divide by count
-- **Max pooling**: Find maximum over column elements
+For average pooling:
+1. Im2col extracts all pooling windows
+2. Padded positions are zeroed out (if padding > 0)
+3. MatMul with uniform weight sums each window
+4. Result is divided by valid element count
+
+For max pooling:
+- Direct maximum operation on each window (more efficient than matmul)
 
 ### Memory Layout
 
@@ -89,7 +107,8 @@ For a 3x3 pooling kernel on a single-channel 5x5 input:
 ### Padding Handling
 
 **Average Pooling**:
-- Padding areas are excluded from the sum
+- Padded positions are set to zero in the im2col output
+- This ensures they don't contribute to the sum in matmul
 - Division is by the count of valid (non-padded) elements only
 - This matches the behavior of typical deep learning frameworks
 
