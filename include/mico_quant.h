@@ -5,6 +5,9 @@
 #include "mico_nn.h"
 #include "qtypes.h"
 
+void MiCo_2D_quant(Tensor2D_Q8 *qx, const Tensor2D_F32 *x, const qtype qbits);
+void MiCo_4D_quant(Tensor4D_Q8 *qx, const Tensor4D_F32 *x, const qtype qbits);
+
 void MiCo_2D_FP32toQ8(Tensor2D_Q8 *qx, const Tensor2D_F32 *x);
 void MiCo_4D_FP32toQ8(Tensor4D_Q8 *qx, const Tensor4D_F32 *x);
 

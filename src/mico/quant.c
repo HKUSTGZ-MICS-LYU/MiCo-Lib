@@ -2,6 +2,89 @@
 
 #include <math.h>
 
+
+void MiCo_2D_quant(Tensor2D_Q8 *qx, const Tensor2D_F32 *x, const qtype qbits){
+
+    const size_t b = x->shape[0];
+    const size_t n = x->shape[1];
+
+    #ifdef QUANT_REUSE
+    // Check if the buffer already store the same tensor
+    if (MiCo_QX_Buffer_Global.src == x->data && 
+        MiCo_QX_Buffer_Global.size == b*n &&
+        MiCo_QX_Buffer_Global.qbits == qbits) {
+        return;
+    }
+    #endif
+
+    // Update Global Buffer Info
+    MiCo_QX_Buffer_Global.src = x->data;
+    MiCo_QX_Buffer_Global.size = b*n;
+    MiCo_QX_Buffer_Global.qbits = qbits;
+    MiCo_QX_Buffer_Global.dirty = 0;
+
+    switch (qbits)
+    {
+      case 8:
+        MiCo_2D_FP32toQ8(qx, x);
+        break;
+      case 4:
+        MiCo_2D_FP32toQ4(qx, x);
+        break;
+      case 2:
+        MiCo_2D_FP32toQ2(qx, x);
+        break;
+      case 1:
+        MiCo_2D_FP32toQ1(qx, x);
+        break;
+      default:
+        printf("[Warning] Unsupported Weight Quantization - %d\n", qbits);
+        break;
+    }
+    return;
+}
+
+void MiCo_4D_quant(Tensor4D_Q8 *qx, const Tensor4D_F32 *x, const qtype qbits){
+
+    const size_t b = x->shape[0];
+    const size_t n = x->shape[1] * x->shape[2] * x->shape[3];
+
+    #ifdef QUANT_REUSE
+    // Check if the buffer already store the same tensor
+    if (MiCo_QX_Buffer_Global.src == x->data &&
+        MiCo_QX_Buffer_Global.size == b*n &&
+        MiCo_QX_Buffer_Global.qbits == qbits) {
+        return;
+    }
+    #endif
+
+    // Update Global Buffer Info
+    MiCo_QX_Buffer_Global.src = x->data;
+    MiCo_QX_Buffer_Global.size = b*n;
+    MiCo_QX_Buffer_Global.qbits = qbits;
+    MiCo_QX_Buffer_Global.dirty = 0;
+
+    switch (qbits)
+    {
+      case 8:
+        MiCo_4D_FP32toQ8(qx, x);
+        break;
+      case 4:
+        MiCo_4D_FP32toQ4(qx, x);
+        break;
+      case 2:
+        MiCo_4D_FP32toQ2(qx, x);
+        break;
+      case 1:
+        MiCo_4D_FP32toQ1(qx, x);
+        break;
+      default:
+        printf("[Warning] Unsupported Weight Quantization - %d\n", qbits);
+        break;
+    }
+    return;
+}
+
 #ifdef USE_RVF
 int roundf2i(float x){
     int result;

@@ -20,6 +20,16 @@
 // Global buffer for quantization operations
 extern qbyte MiCo_QBuffer[QUANTIZE_BUFFER_SIZE];
 
+typedef struct 
+{   qbyte* buffer;
+    float* src;
+    size_t size;
+    char dirty;
+    qtype qbits;
+} MiCo_QX_Buffer;
+
+extern MiCo_QX_Buffer MiCo_QX_Buffer_Global;
+
 // TODO: Here Q8 is used for any bit-width like 8, 4, 2, 1. Alter it later.
 typedef struct {
     qbyte *data;

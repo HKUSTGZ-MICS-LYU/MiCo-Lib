@@ -135,24 +135,8 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 IM2COL_TIMER += MiCo_time() - start;
                 
                 start = MiCo_time();
-                switch (aq)
-                {
-                    case 8:
-                    MiCo_2D_FP32toQ8(&qx, &x_col);
-                    break;
-                    case 4:
-                    MiCo_2D_FP32toQ4(&qx, &x_col);
-                    break;
-                    case 2:
-                    MiCo_2D_FP32toQ2(&qx, &x_col);
-                    break;
-                    case 1:
-                    MiCo_2D_FP32toQ1(&qx, &x_col);
-                    break;
-                    default:
-                        printf("[Warning] Unsupported Weight Quantization - %d\n", aq);
-                    break;
-                }
+                // Activation Quantization for the current block
+                MiCo_2D_quant(&qx, &x_col, aq);
                 QUANT_TIMER += MiCo_time() - start;
                 // printf("Quant Speed: %ld\n", MiCo_time() - start);
 

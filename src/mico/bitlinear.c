@@ -68,26 +68,8 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     start = MiCo_time();
     const size_t qx_size = b*aligned_size*sizeof(int8_t) / (8/aq);
     MiCo_assert(qx_size < QUANTIZE_BUFFER_SIZE, "Quantization Buffer Overflow");
-    qx.data = MiCo_QBuffer;
-
-    switch (aq)
-    {
-      case 8:
-        MiCo_2D_FP32toQ8(&qx, x);
-        break;
-      case 4:
-        MiCo_2D_FP32toQ4(&qx, x);
-        break;
-      case 2:
-        MiCo_2D_FP32toQ2(&qx, x);
-        break;
-      case 1:
-        MiCo_2D_FP32toQ1(&qx, x);
-        break;
-      default:
-        printf("[Warning] Unsupported Weight Quantization - %d\n", aq);
-        break;
-    }
+    qx.data = MiCo_QX_Buffer_Global.buffer;
+    MiCo_2D_quant(&qx, x, aq);
     QUANT_TIMER += MiCo_time() - start;
     // printf("Quant Speed: %ld\n", MiCo_time() - start);
 
