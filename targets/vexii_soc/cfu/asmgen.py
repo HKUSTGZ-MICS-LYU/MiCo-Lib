@@ -53,7 +53,7 @@ dotp_rev = """
 """
 
 def gen_NxN_asm(prec, vlen):
-    func_name = f"cfu_dotp_int{prec}"
+    func_name = f"cfu_vecXmat_int{prec}"
     file_path = f"v{vlen}/{func_name}.S"
 
     step = (vlen // 8)
@@ -85,7 +85,7 @@ def gen_NxN_asm(prec, vlen):
     print(f"Generated {file_path}")
 
 def gen_NxM_asm(prec1, prec2, vlen):
-    func_name = f"cfu_dotp_int{prec1}xint{prec2}"
+    func_name = f"cfu_vecXmat_int{prec1}xint{prec2}"
     file_path = f"v{vlen}/{func_name}.S"
 
     step = (vlen // 8)
@@ -125,9 +125,9 @@ def gen_NxM_asm(prec1, prec2, vlen):
 
 if __name__ == "__main__":
 
-    # for p in prec:
-    #     for v in vlen:
-    #         gen_NxN_asm(p, v)
+    for p in prec:
+        for v in vlen:
+            gen_NxN_asm(p, v)
 
     for p in prec:
         for q in prec:

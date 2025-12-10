@@ -1,7 +1,7 @@
 #include "mico_qnn.h"
 
 extern void cfu_enable();
-extern void cfu_dotp_int8(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int8(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -11,7 +11,7 @@ void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     // Check if it is possible to unroll
     if(in_features % 4 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int8(
+            cfu_vecXmat_int8(
                 (qword*)(x->data+i*in_features), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -32,7 +32,7 @@ void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int4(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int4(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
@@ -46,7 +46,7 @@ void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 8 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int4(
+            cfu_vecXmat_int4(
                 (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -74,7 +74,7 @@ void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int2(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int2(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -87,7 +87,7 @@ void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 16 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int2(
+            cfu_vecXmat_int2(
                 (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -115,7 +115,7 @@ void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int1(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int1(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -128,7 +128,7 @@ void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int1(
+            cfu_vecXmat_int1(
                 (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -157,7 +157,7 @@ void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int8xint4(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int8xint4(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
@@ -168,7 +168,7 @@ void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int32_t acc;
     if(in_features % 8 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int8xint4(
+            cfu_vecXmat_int8xint4(
                 (qword*)(x->data+i*in_features), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -193,7 +193,7 @@ void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int8xint2(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int8xint2(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -203,7 +203,7 @@ void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int32_t acc;
     if(in_features % 16 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int8xint2(
+            cfu_vecXmat_int8xint2(
                 (qword*)(x->data+i*in_features), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -227,7 +227,7 @@ void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int8xint1(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int8xint1(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -239,7 +239,7 @@ void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int8xint1(
+            cfu_vecXmat_int8xint1(
                 (qword*)(x->data+i*in_features), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -263,7 +263,7 @@ void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int4xint2(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int4xint2(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
@@ -277,7 +277,7 @@ void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 16 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int4xint2(
+            cfu_vecXmat_int4xint2(
                 (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -305,7 +305,7 @@ void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int4xint1(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int4xint1(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
@@ -319,7 +319,7 @@ void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int4xint1(
+            cfu_vecXmat_int4xint1(
                 (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -347,7 +347,7 @@ void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int2xint1(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int2xint1(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -360,7 +360,7 @@ void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int2xint1(
+            cfu_vecXmat_int2xint1(
                 (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -390,7 +390,7 @@ void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
 
 // -----------------------------------------------------------------------------
-extern void cfu_dotp_int4xint8(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int4xint8(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
@@ -402,7 +402,7 @@ void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int32_t acc;
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int4xint8(
+            cfu_vecXmat_int4xint8(
                 (qword*)(x->data+i*in_features/2), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -427,7 +427,7 @@ void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int2xint8(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int2xint8(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -438,7 +438,7 @@ void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int32_t acc;
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int2xint8(
+            cfu_vecXmat_int2xint8(
                 (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -463,7 +463,7 @@ void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int1xint8(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int1xint8(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -475,7 +475,7 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int1xint8(
+            cfu_vecXmat_int1xint8(
                 (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -500,7 +500,7 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int2xint4(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int2xint4(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -513,7 +513,7 @@ void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int2xint4(
+            cfu_vecXmat_int2xint4(
                 (qword*)(x->data+i*in_features/4), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -540,7 +540,7 @@ void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int1xint4(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int1xint4(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -553,7 +553,7 @@ void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int1xint4(
+            cfu_vecXmat_int1xint4(
                 (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
@@ -580,7 +580,7 @@ void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     }
 }
 
-extern void cfu_dotp_int1xint2(qword* a, qword* w, int32_t* o, int n, int m);
+extern void cfu_vecXmat_int1xint2(qword* a, qword* w, int32_t* o, int n, int m);
 void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -592,7 +592,7 @@ void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int32_t acc;
     if(in_features % 32 == 0){
         for (size_t i = 0; i < batch_size; i++) {
-            cfu_dotp_int1xint2(
+            cfu_vecXmat_int1xint2(
                 (qword*)(x->data+i*in_features/8), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
