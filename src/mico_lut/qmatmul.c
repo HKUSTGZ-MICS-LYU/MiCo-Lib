@@ -85,7 +85,7 @@ static inline void build_lut_2x4(int32_t *lut, int8_t a0, int8_t a1) {
 // =============================================================================
 // LUTs are built ONCE per activation group, then reused for ALL outputs
 
-__attribute__((weak)) void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -133,7 +133,7 @@ __attribute__((weak)) void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
 // 8-bit activation x 2-bit weight LUT-based MatMul
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -176,16 +176,11 @@ __attribute__((weak)) void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     if (num_groups > 64) free(luts);
 }
 
-// Alias for backwards compatibility
-__attribute__((weak)) void MiCo_Q8x2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
-    MiCo_Q8x2_MatMul(O, x, w);
-}
-
 // =============================================================================
 // 8-bit activation x 4-bit weight LUT-based MatMul
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -231,7 +226,7 @@ __attribute__((weak)) void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
 // Standard 8-bit MatMul (no LUT needed)
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -251,7 +246,7 @@ __attribute__((weak)) void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, cons
 // 4-bit x 4-bit LUT-based MatMul
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -301,7 +296,7 @@ __attribute__((weak)) void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, cons
 // 2-bit x 2-bit LUT-based MatMul
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -351,7 +346,7 @@ __attribute__((weak)) void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, cons
 // 1-bit x 1-bit MatMul (BNN - uses XNOR + popcount)
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -396,7 +391,7 @@ __attribute__((weak)) void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, cons
 // Mixed precision: 4-bit activation x 2-bit weight
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -448,7 +443,7 @@ __attribute__((weak)) void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
 // Mixed precision: 4-bit activation x 1-bit weight
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -500,7 +495,7 @@ __attribute__((weak)) void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
 // Mixed precision: 2-bit activation x 1-bit weight
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -557,7 +552,7 @@ __attribute__((weak)) void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
 // LUT doesn't help much when weight space is large
 // =============================================================================
 
-__attribute__((weak)) void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -580,7 +575,7 @@ __attribute__((weak)) void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     }
 }
 
-__attribute__((weak)) void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -603,7 +598,7 @@ __attribute__((weak)) void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     }
 }
 
-__attribute__((weak)) void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -626,7 +621,7 @@ __attribute__((weak)) void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     }
 }
 
-__attribute__((weak)) void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -651,7 +646,7 @@ __attribute__((weak)) void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     }
 }
 
-__attribute__((weak)) void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
@@ -676,7 +671,7 @@ __attribute__((weak)) void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
     }
 }
 
-__attribute__((weak)) void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
+void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
     const size_t out_features = w->shape[0];
