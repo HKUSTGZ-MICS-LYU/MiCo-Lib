@@ -92,7 +92,8 @@ The LUT approach may be less beneficial when:
 
 ## References
 
-- [T-MAC: Table-based Mixed-precision Quantization for Efficient Model Compression](https://github.com/microsoft/T-MAC)
+- **T-MAC Paper**: Wei et al., "T-MAC: CPU Renaissance via Table Lookup for Low-Bit LLM Deployment on Edge", arXiv:2407.00088
+- **T-MAC GitHub**: https://github.com/microsoft/T-MAC
 
 ## Comparison with Other Sources
 
