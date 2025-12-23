@@ -16,6 +16,10 @@ ifneq ($(filter opt, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/optimized/*.c)
 endif
 
+ifneq ($(filter lut, $(OPT)),)
+	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/mico_lut/*.c)
+endif
+
 ifneq ($(filter ref, $(OPT)),)
 	CFLAGS += -DREF
 endif
