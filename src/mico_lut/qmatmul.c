@@ -117,6 +117,12 @@ __attribute__((weak)) void MiCo_Q8x2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x
     int32_t lut_storage[256 * 64];  // Stack buffer for up to 64 groups
     int32_t *luts = (num_groups <= 64) ? lut_storage : (int32_t*)malloc(num_groups * 256 * sizeof(int32_t));
     
+    if (luts == NULL && num_groups > 64) {
+        // Fallback to non-optimized version if allocation fails
+        MiCo_Q8x2_MatMul(O, x, w);
+        return;
+    }
+    
     for (size_t i = 0; i < batch_size; i++) {
         const int8_t *x_row = &x->data[i * in_features];
         
