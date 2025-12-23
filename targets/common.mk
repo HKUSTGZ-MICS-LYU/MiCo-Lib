@@ -12,8 +12,8 @@ ifneq ($(filter im2col, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/im2col_conv2d/*.c)
 endif
 
-ifneq ($(filter riscv, $(OPT)),)
-	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/riscv/*.c)
+ifneq ($(filter opt, $(OPT)),)
+	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/optimized/*.c)
 endif
 
 ifneq ($(filter ref, $(OPT)),)

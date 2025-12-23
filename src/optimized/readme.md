@@ -61,17 +61,17 @@ All standard MiCo mixed precision matmul operations are supported:
 
 ## Usage
 
-Enable the RISC-V optimizations by adding `riscv` to the `OPT` variable in your makefile:
+Enable the RISC-V optimizations by adding `opt` to the `OPT` variable in your makefile:
 
 ```makefile
-OPT += riscv
+OPT += opt
 include $(MICO_DIR)/targets/common.mk
 ```
 
 Or when invoking make:
 
 ```bash
-make OPT=riscv ...
+make OPT=opt ...
 ```
 
 ## Comparison with Other Sources
@@ -80,6 +80,6 @@ make OPT=riscv ...
 |--------|------------------|-------------------|
 | `src/mico` | None (baseline) | Reference implementation |
 | `src/mico_unrolled` | None | Loop unrolling for Q8 only |
-| `src/riscv` | RV32IM/RV64IM | **Full mixed precision optimization** |
+| `src/opt` | RV32IM/RV64IM | **Full mixed precision optimization** |
 | `targets/vexii/mico32` | Custom SIMD | Hardware SIMD acceleration (32-bit) |
 | `targets/vexii/mico64` | Custom SIMD | Hardware SIMD acceleration (64-bit) |
