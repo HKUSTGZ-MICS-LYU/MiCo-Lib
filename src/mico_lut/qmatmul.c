@@ -45,7 +45,7 @@ static inline void build_lut_8x1(int32_t *lut, const int8_t *a) {
     // Precompute sum for fast LUT building
     int32_t sum_all = a[0] + a[1] + a[2] + a[3] + a[4] + a[5] + a[6] + a[7];
     
-    for (int idx = 0; idx < 256; idx++) {
+    for (int idx = 0; idx < 256 / 2; idx++) {
         int32_t result = sum_all;
         // Each bit flips sign from +1 to -1 (subtract 2*a[bit])
         if (idx & 0x01) result -= 2 * a[0];
@@ -58,6 +58,10 @@ static inline void build_lut_8x1(int32_t *lut, const int8_t *a) {
         if (idx & 0x80) result -= 2 * a[7];
         lut[idx] = result;
     }
+    // Mirror Consolidation for negative patterns
+    for (int idx = 0; idx < 256 / 2; idx++) {
+        lut[((~idx) & 0xFF)] = -lut[idx];
+    }
 }
 
 // Build 256-entry LUT for 4 activations with 2-bit weights
@@ -69,6 +73,8 @@ static inline void build_lut_4x2(int32_t *lut, int8_t a0, int8_t a1, int8_t a2, 
         int8_t w3 = decode_2bit((wb >> 6) & 0x03);
         lut[wb] = a0 * w0 + a1 * w1 + a2 * w2 + a3 * w3;
     }
+    // TODO: If 1.58b (Symmetric) quantization is used, 
+    // we can optimize LUT building with mirroring
 }
 
 // Build 256-entry LUT for 2 activations with 4-bit weights
@@ -78,6 +84,8 @@ static inline void build_lut_2x4(int32_t *lut, int8_t a0, int8_t a1) {
         int8_t w1 = decode_4bit((wb >> 4) & 0x0F);
         lut[wb] = a0 * w0 + a1 * w1;
     }
+    // TODO: If Symmetric quantization is used, 
+    // we can optimize LUT building with mirroring
 }
 
 // =============================================================================
