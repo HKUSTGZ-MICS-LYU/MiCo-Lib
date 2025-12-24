@@ -1,3 +1,5 @@
+#define MiCo_Q8_MatMul MiCo_Q8_MatMul_unroll
+#define MiCo_Q4_MatMul MiCo_Q4_MatMul_unroll
 #include "mico_qnn.h"
 
 // Actually meaningless for now

@@ -4,6 +4,15 @@
 #include "mico_nn.h"
 #include "qtypes.h"
 
+typedef enum {
+    MICO_OPT_DEFAULT = 0,
+    MICO_OPT_UNROLL = 1,
+    MICO_OPT_LUT = 2
+} MiCoMatMulOpt;
+
+void MiCo_SetDefaultMatMulOpt(MiCoMatMulOpt opt);
+MiCoMatMulOpt MiCo_GetDefaultMatMulOpt(void);
+
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
@@ -26,6 +35,18 @@ void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
 void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+// Layer-wise selectable optimization wrappers
+void MiCo_Q8_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q4_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q8x4_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q8x2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q8x1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q4x2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q4x1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
+void MiCo_Q2x1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt);
 
 // Reference implementations for testing
 #ifdef REF

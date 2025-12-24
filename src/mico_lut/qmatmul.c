@@ -1,3 +1,12 @@
+#define MiCo_Q8x1_MatMul MiCo_Q8x1_MatMul_lut
+#define MiCo_Q8x2_MatMul MiCo_Q8x2_MatMul_lut
+#define MiCo_Q8x4_MatMul MiCo_Q8x4_MatMul_lut
+#define MiCo_Q4_MatMul MiCo_Q4_MatMul_lut
+#define MiCo_Q2_MatMul MiCo_Q2_MatMul_lut
+#define MiCo_Q1_MatMul MiCo_Q1_MatMul_lut
+#define MiCo_Q4x2_MatMul MiCo_Q4x2_MatMul_lut
+#define MiCo_Q4x1_MatMul MiCo_Q4x1_MatMul_lut
+#define MiCo_Q2x1_MatMul MiCo_Q2x1_MatMul_lut
 #include "mico_qnn.h"
 
 // LUT-based Mixed Precision MatMul Kernels

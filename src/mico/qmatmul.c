@@ -1,5 +1,20 @@
 #include "mico_qnn.h"
 
+typedef void (*MiCoMatMulImpl)(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
+
+extern void MiCo_Q8_MatMul_unroll(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q4_MatMul_unroll(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+
+extern void MiCo_Q8x1_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q8x2_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q8x4_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q4_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q2_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q1_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q4x2_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q4x1_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+extern void MiCo_Q2x1_MatMul_lut(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) __attribute__((weak));
+
 
 // Baseline Implementation of MatMuls
 // This is the most intensive kernel that you may want to optimize
@@ -408,3 +423,97 @@ __attribute__((weak)) void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, co
         }
     }
 }
+
+
+static MiCoMatMulOpt g_mico_default_matmul_opt =
+#ifdef MICO_DEFAULT_MATMUL_OPT
+    (MiCoMatMulOpt)(MICO_DEFAULT_MATMUL_OPT);
+#else
+    MICO_OPT_DEFAULT;
+#endif
+
+static inline MiCoMatMulImpl mico_select_matmul_impl(
+    MiCoMatMulOpt opt,
+    MiCoMatMulImpl base,
+    MiCoMatMulImpl unroll,
+    MiCoMatMulImpl lut){
+
+    MiCoMatMulOpt effective = (opt == MICO_OPT_DEFAULT) ? g_mico_default_matmul_opt : opt;
+
+    switch (effective){
+        case MICO_OPT_UNROLL:
+            if (unroll) return unroll;
+            break;
+        case MICO_OPT_LUT:
+            if (lut) return lut;
+            break;
+        default:
+            break;
+    }
+    return base;
+}
+
+void MiCo_SetDefaultMatMulOpt(MiCoMatMulOpt opt){
+    switch (opt){
+        case MICO_OPT_UNROLL:
+        case MICO_OPT_LUT:
+            g_mico_default_matmul_opt = opt;
+            break;
+        default:
+            g_mico_default_matmul_opt = MICO_OPT_DEFAULT;
+            break;
+    }
+}
+
+MiCoMatMulOpt MiCo_GetDefaultMatMulOpt(void){
+    return g_mico_default_matmul_opt;
+}
+
+#define MICO_DISPATCH_OPT(base_fn, unroll_fn, lut_fn)           \
+    do {                                                        \
+        MiCoMatMulImpl impl = mico_select_matmul_impl(          \
+            opt, base_fn, unroll_fn, lut_fn);                   \
+        impl(O, x, w);                                          \
+    } while (0)
+
+void MiCo_Q8_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q8_MatMul, MiCo_Q8_MatMul_unroll, NULL);
+}
+
+void MiCo_Q4_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q4_MatMul, MiCo_Q4_MatMul_unroll, MiCo_Q4_MatMul_lut);
+}
+
+void MiCo_Q2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q2_MatMul, NULL, MiCo_Q2_MatMul_lut);
+}
+
+void MiCo_Q1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q1_MatMul, NULL, MiCo_Q1_MatMul_lut);
+}
+
+void MiCo_Q8x4_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q8x4_MatMul, NULL, MiCo_Q8x4_MatMul_lut);
+}
+
+void MiCo_Q8x2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q8x2_MatMul, NULL, MiCo_Q8x2_MatMul_lut);
+}
+
+void MiCo_Q8x1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q8x1_MatMul, NULL, MiCo_Q8x1_MatMul_lut);
+}
+
+void MiCo_Q4x2_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q4x2_MatMul, NULL, MiCo_Q4x2_MatMul_lut);
+}
+
+void MiCo_Q4x1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q4x1_MatMul, NULL, MiCo_Q4x1_MatMul_lut);
+}
+
+void MiCo_Q2x1_MatMul_Opt(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w, MiCoMatMulOpt opt){
+    MICO_DISPATCH_OPT(MiCo_Q2x1_MatMul, NULL, MiCo_Q2x1_MatMul_lut);
+}
+
+#undef MICO_DISPATCH_OPT

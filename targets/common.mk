@@ -27,3 +27,28 @@ endif
 ifneq ($(filter quant_reuse, $(OPT)),)
 	CFLAGS += -DQUANT_REUSE
 endif
+
+HAS_UNROLL := $(filter unroll, $(OPT))
+HAS_LUT := $(filter lut, $(OPT))
+
+ifneq ($(HAS_UNROLL),)
+	CFLAGS += -DMICO_HAS_UNROLL
+endif
+
+ifneq ($(HAS_LUT),)
+	CFLAGS += -DMICO_HAS_LUT
+endif
+
+ifneq ($(HAS_UNROLL),)
+ifneq ($(HAS_LUT),)
+else
+	CFLAGS += -DMICO_DEFAULT_MATMUL_OPT=1
+endif
+endif
+
+ifneq ($(HAS_LUT),)
+ifneq ($(HAS_UNROLL),)
+else
+	CFLAGS += -DMICO_DEFAULT_MATMUL_OPT=2
+endif
+endif
