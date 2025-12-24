@@ -2,26 +2,14 @@
 #include "mico_nn.h"
 #include "mico_qnn.h"
 #include "mico_quant.h"
+#include "mico_runtime.h"
 #include "profile.h"
 
 extern long QMATMUL_TIMER;
 extern long QUANT_TIMER;
 extern long IM2COL_TIMER;
 
-typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
-
-static MatMulFunc MiCo_QMatMul[4][4] = {
-  {MiCo_Q1_MatMul,   MiCo_Q1x2_MatMul, MiCo_Q1x4_MatMul, MiCo_Q1x8_MatMul},
-  {MiCo_Q2x1_MatMul, MiCo_Q2_MatMul,   MiCo_Q2x4_MatMul, MiCo_Q2x8_MatMul},
-  {MiCo_Q4x1_MatMul, MiCo_Q4x2_MatMul, MiCo_Q4_MatMul,   MiCo_Q4x8_MatMul},
-  {MiCo_Q8x1_MatMul, MiCo_Q8x2_MatMul, MiCo_Q8x4_MatMul, MiCo_Q8_MatMul},
-};
-
-static int qlog(qtype x){
-    int result = 0;
-    while (x >>= 1) result++;
-    return result;
-}
+extern MiCoRuntime MiCo_runtime;
 
 // Legacy code: Full im2col Conv2D implementation
 void MiCo_bitconv2d_f32_plain(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
@@ -146,7 +134,7 @@ void MiCo_bitconv2d_f32_plain(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             // MatMul-Based Convolution for the current group
             // TODO: Need Alignment!
             start = MiCo_time();
-            MiCo_QMatMul[qlog(wq)][qlog(aq)](qO, &qw, &qx);
+            MiCo_runtime.matmul_matrix[qlog(wq)][qlog(aq)](qO, &qw, &qx);
             QMATMUL_TIMER += MiCo_time() - start;
 
             size_t group_addr = b * out_c * out_size + (g * out_c_per_group * out_size);

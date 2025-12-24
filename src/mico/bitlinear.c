@@ -3,23 +3,12 @@
 #include "mico_nn.h"
 #include "mico_qnn.h"
 #include "mico_quant.h"
+#include "mico_runtime.h"
 
 extern long QMATMUL_TIMER;
 extern long QUANT_TIMER;
 
-typedef void (*MatMulFunc)(int32_t*, const Tensor2D_Q8*, const Tensor2D_Q8*);
-static MatMulFunc MiCo_QMatMul[4][4] = {
-  {MiCo_Q1_MatMul,   MiCo_Q1x2_MatMul, MiCo_Q1x4_MatMul, MiCo_Q1x8_MatMul},
-  {MiCo_Q2x1_MatMul, MiCo_Q2_MatMul,   MiCo_Q2x4_MatMul, MiCo_Q2x8_MatMul},
-  {MiCo_Q4x1_MatMul, MiCo_Q4x2_MatMul, MiCo_Q4_MatMul,   MiCo_Q4x8_MatMul},
-  {MiCo_Q8x1_MatMul, MiCo_Q8x2_MatMul, MiCo_Q8x4_MatMul, MiCo_Q8_MatMul},
-};
-
-static int qlog(qtype x){
-    int result = 0;
-    while (x >>= 1) result++;
-    return result;
-}
+extern MiCoRuntime MiCo_runtime;
 
 void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
@@ -75,7 +64,7 @@ void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
 
     // TODO: Maybe we should use Enum for aq and wq, so that we can skip qlog
     start = MiCo_time();
-    MiCo_QMatMul[qlog(aq)][qlog(wq)](qO, &qx, weight);
+    MiCo_runtime.matmul_matrix[qlog(aq)][qlog(wq)](qO, &qx, weight);
     QMATMUL_TIMER += MiCo_time() - start;
     // printf("MatMul Speed: %ld\n", MiCo_time() - start);
 
