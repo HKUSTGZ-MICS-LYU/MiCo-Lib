@@ -1,11 +1,10 @@
 #include "profile.h"
 
-#ifdef USE_HOST
-#include <time.h>
-#include <stdio.h>
-#endif
 #ifdef RISCV_VEXII
 #include "sim_stdlib.h"
+#else
+#include <time.h>
+#include <stdio.h>
 #endif
 
 __attribute__((weak)) long int MiCo_time(){
