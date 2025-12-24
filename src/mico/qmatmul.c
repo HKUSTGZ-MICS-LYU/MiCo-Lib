@@ -459,6 +459,9 @@ void MiCo_SetDefaultMatMulOpt(MiCoMatMulOpt opt){
         case MICO_OPT_LUT:
             g_mico_default_matmul_opt = opt;
             break;
+        case MICO_OPT_DEFAULT:
+            g_mico_default_matmul_opt = MICO_OPT_DEFAULT;
+            break;
         default:
             g_mico_default_matmul_opt = MICO_OPT_DEFAULT;
             break;

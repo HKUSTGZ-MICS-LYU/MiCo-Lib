@@ -40,15 +40,11 @@ ifneq ($(HAS_LUT),)
 endif
 
 ifneq ($(HAS_UNROLL),)
-ifneq ($(HAS_LUT),)
-else
-	CFLAGS += -DMICO_DEFAULT_MATMUL_OPT=1
-endif
-endif
-
-ifneq ($(HAS_LUT),)
-ifneq ($(HAS_UNROLL),)
-else
+	ifneq ($(HAS_LUT),)
+		# Both available, default is explicit selection
+	else
+		CFLAGS += -DMICO_DEFAULT_MATMUL_OPT=1
+	endif
+else ifneq ($(HAS_LUT),)
 	CFLAGS += -DMICO_DEFAULT_MATMUL_OPT=2
-endif
 endif
