@@ -15,8 +15,9 @@
 // Inline macro for fence.i instruction
 #define fence_i() __asm__ volatile("fence.i")
 
-// VPU Configuration macro - sets precision for activation and weight
-// vpu_CONFIG(qa, qb) - qa: activation precision, qb: weight precision
+// VPU Configuration macro - sets precision for the VPU operation
+// vpu_config(qa, qb) - qa: larger precision, qb: smaller precision
+// Note: For asymmetric operations, always pass max(prec1, prec2) first, then min(prec1, prec2)
 // Encoding: opcode=0x0B, func3=0x2, func7=0x00
 // qa goes in bits 15-19 (rs1 position), qb goes in bits 20-24 (rs2 position)
 #define vpu_config(qa, qb) do { \
@@ -544,6 +545,7 @@ void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 // -----------------------------------------------------------------------------
 // Reversed precision functions (weight precision > activation precision)
 // In these cases, for vpu_VDOT, the operands are swapped (v1, v0) instead of (v0, v1)
+// Note: vpu_config still uses (larger_prec, smaller_prec) ordering per hardware requirement
 // -----------------------------------------------------------------------------
 
 void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
