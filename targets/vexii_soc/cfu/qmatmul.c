@@ -5,8 +5,15 @@
 
 // VLEN: Vector register length in bits (default 128)
 // This should be passed via compiler flags (e.g., -DVLEN=64)
+// Supported values: 64, 128, 256, 512
 #ifndef VLEN
 #define VLEN 128
+#endif
+
+// Compile-time validation: VLEN must be at least 64 bits
+// (minimum requirement for the VPU implementation)
+#if VLEN < 64
+#error "VLEN must be at least 64 bits for VPU operations"
 #endif
 
 // Calculate step size and elements per vector operation based on VLEN and precision
