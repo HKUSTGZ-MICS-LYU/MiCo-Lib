@@ -52,6 +52,10 @@ else
 	LDFLAGS += -lgcc
 endif
 
+ifneq ($(filter legacy, $(OPT)),)
+	MICO_SIMD_DIR := $(MICO_SIMD_DIR)/legacy
+endif
+
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 ifneq ($(filter simd, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(VEXII_PATH)/$(MICO_SIMD_DIR)/*.c)

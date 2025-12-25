@@ -70,6 +70,10 @@ ifneq ($(filter cfu, $(OPT)),)
 	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8))
 endif
 
+ifneq ($(filter legacy, $(OPT)),)
+	MICO_SIMD_DIR := $(MICO_SIMD_DIR)/legacy
+endif
+
 ifneq ($(filter simd, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(MICO_SIMD_DIR)/*.c)
 	RISCV_SOURCE += $(wildcard $(MICO_SIMD_DIR)/*.S)
