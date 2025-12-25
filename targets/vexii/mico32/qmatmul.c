@@ -1,4 +1,30 @@
 #include "mico_qnn.h"
+#ifdef RISCV_VEXII
+#include "riscv.h"
+#endif
+
+#ifndef MICO_VEXII_INLINE_VECXMAT
+#define MICO_VEXII_INLINE_VECXMAT 1
+#endif
+
+#if defined(RISCV_VEXII) && MICO_VEXII_INLINE_VECXMAT
+static inline int32_t __mico_v4s8_mac(qword a, qword w){
+    return (int32_t)opcode_R(CUSTOM0, 0x4, 0x01, a, w);
+}
+
+static void __mico_v4s8_vecXmat_inline(qword* a, qword* w, int32_t* o, int n, int m){
+    const int stride = n >> 2;
+    for(int row = 0; row < m; ++row){
+        int32_t acc = 0;
+        qword* a_ptr = a;
+        qword* w_ptr = w + row * stride;
+        for(int col = 0; col < stride; ++col){
+            acc += __mico_v4s8_mac(*a_ptr++, *w_ptr++);
+        }
+        o[row] = acc;
+    }
+}
+#endif
 
 // SIMD accelerated Implementation of 8-bit MatMul
 // Requires ISA support
@@ -12,12 +38,21 @@ void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     // Check if it is possible to unroll
     if(in_features % 4 == 0){
         for (size_t i = 0; i < batch_size; i++) {
+#if defined(RISCV_VEXII) && MICO_VEXII_INLINE_VECXMAT
+            __mico_v4s8_vecXmat_inline(
+                (qword*)(x->data+i*in_features), 
+                (qword*)(w->data), 
+                (int32_t*)(O+i*out_features), 
+                in_features, 
+                out_features);
+#else
             __mico_v4s8_vecXmat(
                 (qword*)(x->data+i*in_features), 
                 (qword*)(w->data), 
                 (int32_t*)(O+i*out_features), 
                 in_features, 
                 out_features);
+#endif
         }
     }else{
         for (size_t i = 0; i < batch_size; i++) {
