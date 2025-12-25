@@ -3,6 +3,19 @@
 // SIMD accelerated Implementation of MatMul using VPU
 // Requires ISA support for CFU (Custom Function Unit)
 
+// VLEN: Vector register length in bits (default 128)
+// This should be passed via compiler flags (e.g., -DVLEN=64)
+#ifndef VLEN
+#define VLEN 128
+#endif
+
+// Calculate step size and elements per vector operation based on VLEN and precision
+#define VPU_STEP_BYTES (VLEN / 8)  // Number of bytes per vector load
+#define VPU_ELEMS_Q8 (VLEN / 8)    // Elements per vector op for 8-bit
+#define VPU_ELEMS_Q4 (VLEN / 4)    // Elements per vector op for 4-bit
+#define VPU_ELEMS_Q2 (VLEN / 2)    // Elements per vector op for 2-bit
+#define VPU_ELEMS_Q1 (VLEN / 1)    // Elements per vector op for 1-bit
+
 // Inline macro to enable CFU
 #define cfu_enable() do { \
     __asm__ volatile( \
@@ -84,17 +97,21 @@ void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     fence_i();
     vpu_config(8, 8);
 
-    // Check if it is possible to unroll
-    const size_t qwords = in_features / 4;
-    const size_t remain = in_features % 4;
+    // VPU_ELEMS_Q8 = VLEN/8 (number of 8-bit elements per vector op)
+    // For 8-bit data in qword (32-bit), each qword has 4 elements
+    // So we step by VPU_ELEMS_Q8/4 qwords per iteration
+    const size_t elems_per_iter = VPU_ELEMS_Q8;
+    const size_t qword_step = elems_per_iter / 4;  // qwords per vector load
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features);
         for (size_t j = 0; j < out_features; j++) {
             int32_t sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features);
-            for (size_t k = 0; k < qwords; k++) {
-                vpu_load_v0(&a_ptr[k]);
-                vpu_load_v1(&w_ptr[k]);
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * qword_step]);
+                vpu_load_v1(&w_ptr[k * qword_step]);
                 sum += vpu_vdot_v0_v1();
             }
             // Handle remaining elements
@@ -120,16 +137,21 @@ void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t qwords = in_features / 8;
-    const size_t remain = in_features % 8;
+    // VPU_ELEMS_Q4 = VLEN/4 (number of 4-bit elements per vector op)
+    // For 4-bit data in qword (32-bit), each qword has 8 elements
+    // So we step by VPU_ELEMS_Q4/8 qwords per iteration
+    const size_t elems_per_iter = VPU_ELEMS_Q4;
+    const size_t qword_step = elems_per_iter / 8;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 2);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 2);
-            for (size_t k = 0; k < qwords; k++) {
-                vpu_load_v0(&a_ptr[k]);
-                vpu_load_v1(&w_ptr[k]);
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * qword_step]);
+                vpu_load_v1(&w_ptr[k * qword_step]);
                 acc_sum += vpu_vdot_v0_v1();
             }
             // Handle remaining elements
@@ -159,16 +181,21 @@ void MiCo_Q2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t qwords = in_features / 16;
-    const size_t remain = in_features % 16;
+    // VPU_ELEMS_Q2 = VLEN/2 (number of 2-bit elements per vector op)
+    // For 2-bit data in qword (32-bit), each qword has 16 elements
+    // So we step by VPU_ELEMS_Q2/16 qwords per iteration
+    const size_t elems_per_iter = VPU_ELEMS_Q2;
+    const size_t qword_step = elems_per_iter / 16;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 4);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 4);
-            for (size_t k = 0; k < qwords; k++) {
-                vpu_load_v0(&a_ptr[k]);
-                vpu_load_v1(&w_ptr[k]);
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * qword_step]);
+                vpu_load_v1(&w_ptr[k * qword_step]);
                 acc_sum += vpu_vdot_v0_v1();
             }
             // Handle remaining elements
@@ -198,16 +225,21 @@ void MiCo_Q1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t qwords = in_features / 32;
-    const size_t remain = in_features % 32;
+    // VPU_ELEMS_Q1 = VLEN/1 (number of 1-bit elements per vector op)
+    // For 1-bit data in qword (32-bit), each qword has 32 elements
+    // So we step by VPU_ELEMS_Q1/32 qwords per iteration
+    const size_t elems_per_iter = VPU_ELEMS_Q1;
+    const size_t qword_step = elems_per_iter / 32;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 8);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 8);
-            for (size_t k = 0; k < qwords; k++) {
-                vpu_load_v0(&a_ptr[k]);
-                vpu_load_v1(&w_ptr[k]);
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * qword_step]);
+                vpu_load_v1(&w_ptr[k * qword_step]);
                 acc_sum += vpu_vdot_v0_v1();
             }
             // Handle remaining elements
@@ -236,28 +268,29 @@ void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     vpu_config(8, 4);
 
     int8_t temp_w;
-    const size_t a_qwords = in_features / 4;
-    const size_t remain = in_features - a_qwords * 4;
+    // For Q8x4: activation is 8-bit, weight is 4-bit
+    // VPU load processes VPU_STEP_BYTES bytes at a time
+    // Activation elements per VPU load: VPU_ELEMS_Q8
+    // Weight elements per VPU load: VPU_STEP_BYTES * 2 (each byte has 2 x 4-bit)
+    // Ratio: 8/4 = 2 activation loads per weight load
+    const size_t act_elems_per_load = VPU_ELEMS_Q8;
+    const size_t ratio = 8 / 4;  // activation_prec / weight_prec
+    const size_t act_qword_step = act_elems_per_load / 4;
+    const size_t wt_qword_step = (act_elems_per_load * ratio) / 8;  // weight has 8 elements per qword
+    const size_t elems_per_iter = act_elems_per_load * ratio;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 2);
-            size_t w_idx = 0;
-            size_t k = 0;
-            // Each w_word contains 8 4-bit values, which corresponds to 2 a_words (each with 4 8-bit values)
-            while (k + 1 < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 1]);
-                acc_sum += vpu_vdot_v0_v1();
-                k += 2;
-            }
-            if (k < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v1(&w_ptr[k * wt_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v0(&a_ptr[k * ratio * act_qword_step + r * act_qword_step]);
+                    acc_sum += vpu_vdot_v0_v1();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_w = w->data[(j * in_features + t)/2];
@@ -280,36 +313,26 @@ void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     vpu_config(8, 2);
 
     int8_t temp_w;
-    const size_t a_qwords = in_features / 4;
-    const size_t remain = in_features - a_qwords * 4;
+    // For Q8x2: activation is 8-bit, weight is 2-bit
+    // Ratio: 8/2 = 4 activation loads per weight load
+    const size_t act_elems_per_load = VPU_ELEMS_Q8;
+    const size_t ratio = 8 / 2;
+    const size_t act_qword_step = act_elems_per_load / 4;
+    const size_t wt_qword_step = (act_elems_per_load * ratio) / 16;  // weight has 16 elements per qword
+    const size_t elems_per_iter = act_elems_per_load * ratio;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 4);
-            size_t w_idx = 0;
-            size_t k = 0;
-            // Each w_word contains 16 2-bit values, which corresponds to 4 a_words (each with 4 8-bit values)
-            while (k + 3 < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k + 0]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 1]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 2]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 3]);
-                acc_sum += vpu_vdot_v0_v1();
-                k += 4;
-            }
-            if (k < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
-                ++k;
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v1(&w_ptr[k * wt_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v0(&a_ptr[k * ratio * act_qword_step + r * act_qword_step]);
+                    acc_sum += vpu_vdot_v0_v1();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_w = w->data[(j * in_features + t)/4];
@@ -331,48 +354,26 @@ void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     vpu_config(8, 1);
 
     int8_t temp_w;
-    const size_t a_qwords = in_features / 4;
-    const size_t remain = in_features - a_qwords * 4;
+    // For Q8x1: activation is 8-bit, weight is 1-bit
+    // Ratio: 8/1 = 8 activation loads per weight load
+    const size_t act_elems_per_load = VPU_ELEMS_Q8;
+    const size_t ratio = 8 / 1;
+    const size_t act_qword_step = act_elems_per_load / 4;
+    const size_t wt_qword_step = (act_elems_per_load * ratio) / 32;  // weight has 32 elements per qword
+    const size_t elems_per_iter = act_elems_per_load * ratio;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 8);
-            size_t w_idx = 0;
-            size_t k = 0;
-            // Each w_word contains 32 1-bit values, which corresponds to 8 a_words (each with 4 8-bit values)
-            while (k + 7 < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k + 0]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 1]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 2]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 3]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 4]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 5]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 6]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 7]);
-                acc_sum += vpu_vdot_v0_v1();
-                k += 8;
-            }
-            if (k < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
-                ++k;
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v1(&w_ptr[k * wt_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v0(&a_ptr[k * ratio * act_qword_step + r * act_qword_step]);
+                    acc_sum += vpu_vdot_v0_v1();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_w = w->data[(j * in_features + t)/8];
@@ -397,28 +398,26 @@ void MiCo_Q4x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t a_qwords = in_features / 8;
-    const size_t remain = in_features - a_qwords * 8;
+    // For Q4x2: activation is 4-bit, weight is 2-bit
+    // Ratio: 4/2 = 2 activation loads per weight load
+    const size_t act_elems_per_load = VPU_ELEMS_Q4;
+    const size_t ratio = 4 / 2;
+    const size_t act_qword_step = act_elems_per_load / 8;  // 4-bit has 8 elements per qword
+    const size_t wt_qword_step = (act_elems_per_load * ratio) / 16;  // 2-bit has 16 elements per qword
+    const size_t elems_per_iter = act_elems_per_load * ratio;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 2);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 4);
-            size_t w_idx = 0;
-            size_t k = 0;
-            // Each w_word contains 16 2-bit values, which corresponds to 2 a_words (each with 8 4-bit values)
-            while (k + 1 < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 1]);
-                acc_sum += vpu_vdot_v0_v1();
-                k += 2;
-            }
-            if (k < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v1(&w_ptr[k * wt_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v0(&a_ptr[k * ratio * act_qword_step + r * act_qword_step]);
+                    acc_sum += vpu_vdot_v0_v1();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_w = w->data[(j * in_features + t)/4];
@@ -447,36 +446,26 @@ void MiCo_Q4x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t a_qwords = in_features / 8;
-    const size_t remain = in_features - a_qwords * 8;
+    // For Q4x1: activation is 4-bit, weight is 1-bit
+    // Ratio: 4/1 = 4 activation loads per weight load
+    const size_t act_elems_per_load = VPU_ELEMS_Q4;
+    const size_t ratio = 4 / 1;
+    const size_t act_qword_step = act_elems_per_load / 8;  // 4-bit has 8 elements per qword
+    const size_t wt_qword_step = (act_elems_per_load * ratio) / 32;  // 1-bit has 32 elements per qword
+    const size_t elems_per_iter = act_elems_per_load * ratio;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 2);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 8);
-            size_t w_idx = 0;
-            size_t k = 0;
-            // Each w_word contains 32 1-bit values, which corresponds to 4 a_words (each with 8 4-bit values)
-            while (k + 3 < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k + 0]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 1]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 2]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 3]);
-                acc_sum += vpu_vdot_v0_v1();
-                k += 4;
-            }
-            if (k < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
-                ++k;
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
-                if (k < a_qwords) { vpu_load_v0(&a_ptr[k++]); acc_sum += vpu_vdot_v0_v1(); }
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v1(&w_ptr[k * wt_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v0(&a_ptr[k * ratio * act_qword_step + r * act_qword_step]);
+                    acc_sum += vpu_vdot_v0_v1();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_w = w->data[(j * in_features + t)/8];
@@ -504,28 +493,26 @@ void MiCo_Q2x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t a_qwords = in_features / 16;
-    const size_t remain = in_features - a_qwords * 16;
+    // For Q2x1: activation is 2-bit, weight is 1-bit
+    // Ratio: 2/1 = 2 activation loads per weight load
+    const size_t act_elems_per_load = VPU_ELEMS_Q2;
+    const size_t ratio = 2 / 1;
+    const size_t act_qword_step = act_elems_per_load / 16;  // 2-bit has 16 elements per qword
+    const size_t wt_qword_step = (act_elems_per_load * ratio) / 32;  // 1-bit has 32 elements per qword
+    const size_t elems_per_iter = act_elems_per_load * ratio;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 4);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 8);
-            size_t w_idx = 0;
-            size_t k = 0;
-            // Each w_word contains 32 1-bit values, which corresponds to 2 a_words (each with 16 2-bit values)
-            while (k + 1 < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
-                vpu_load_v0(&a_ptr[k + 1]);
-                acc_sum += vpu_vdot_v0_v1();
-                k += 2;
-            }
-            if (k < a_qwords) {
-                vpu_load_v1(&w_ptr[w_idx++]);
-                vpu_load_v0(&a_ptr[k]);
-                acc_sum += vpu_vdot_v0_v1();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v1(&w_ptr[k * wt_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v0(&a_ptr[k * ratio * act_qword_step + r * act_qword_step]);
+                    acc_sum += vpu_vdot_v0_v1();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_w = w->data[(j * in_features + t)/8];
@@ -559,20 +546,26 @@ void MiCo_Q4x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     vpu_config(8, 4);
 
     int8_t temp_a;
-    const size_t a_qwords = in_features / 8;
-    const size_t remain = in_features - a_qwords * 8;
+    // For Q4x8: activation is 4-bit, weight is 8-bit
+    // Ratio: 8/4 = 2 weight loads per activation load
+    const size_t act_elems_per_load = VPU_ELEMS_Q4;
+    const size_t ratio = 8 / 4;
+    const size_t act_qword_step = act_elems_per_load / 8;  // 4-bit has 8 elements per qword
+    const size_t wt_qword_step = act_elems_per_load / 4;   // 8-bit has 4 elements per qword
+    const size_t elems_per_iter = act_elems_per_load;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 2);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features);
-            for (size_t a_idx = 0; a_idx < a_qwords; a_idx++) {
-                vpu_load_v0(&a_ptr[a_idx]);
-                const size_t w_base = a_idx * 2;
-                vpu_load_v1(&w_ptr[w_base]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 1]);
-                acc_sum += vpu_vdot_v1_v0();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * act_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v1(&w_ptr[k * ratio * wt_qword_step + r * wt_qword_step]);
+                    acc_sum += vpu_vdot_v1_v0();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_a = x->data[(i * in_features + t)/2];
@@ -595,24 +588,26 @@ void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     vpu_config(8, 2);
 
     int8_t temp_a;
-    const size_t a_qwords = in_features / 16;
-    const size_t remain = in_features - a_qwords * 16;
+    // For Q2x8: activation is 2-bit, weight is 8-bit
+    // Ratio: 8/2 = 4 weight loads per activation load
+    const size_t act_elems_per_load = VPU_ELEMS_Q2;
+    const size_t ratio = 8 / 2;
+    const size_t act_qword_step = act_elems_per_load / 16;  // 2-bit has 16 elements per qword
+    const size_t wt_qword_step = act_elems_per_load / 4;    // 8-bit has 4 elements per qword
+    const size_t elems_per_iter = act_elems_per_load;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 4);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features);
-            for (size_t a_idx = 0; a_idx < a_qwords; a_idx++) {
-                vpu_load_v0(&a_ptr[a_idx]);
-                const size_t w_base = a_idx * 4;
-                vpu_load_v1(&w_ptr[w_base + 0]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 1]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 2]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 3]);
-                acc_sum += vpu_vdot_v1_v0();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * act_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v1(&w_ptr[k * ratio * wt_qword_step + r * wt_qword_step]);
+                    acc_sum += vpu_vdot_v1_v0();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_a = x->data[(i * in_features + t)/4];
@@ -636,32 +631,26 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     int8_t temp_a;
 
-    const size_t a_qwords = in_features / 32;
-    const size_t remain = in_features - a_qwords * 32;
+    // For Q1x8: activation is 1-bit, weight is 8-bit
+    // Ratio: 8/1 = 8 weight loads per activation load
+    const size_t act_elems_per_load = VPU_ELEMS_Q1;
+    const size_t ratio = 8 / 1;
+    const size_t act_qword_step = act_elems_per_load / 32;  // 1-bit has 32 elements per qword
+    const size_t wt_qword_step = act_elems_per_load / 4;    // 8-bit has 4 elements per qword
+    const size_t elems_per_iter = act_elems_per_load;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 8);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features);
-            for (size_t a_idx = 0; a_idx < a_qwords; a_idx++) {
-                vpu_load_v0(&a_ptr[a_idx]);
-                const size_t w_base = a_idx * 8;
-                vpu_load_v1(&w_ptr[w_base + 0]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 1]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 2]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 3]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 4]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 5]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 6]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 7]);
-                acc_sum += vpu_vdot_v1_v0();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * act_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v1(&w_ptr[k * ratio * wt_qword_step + r * wt_qword_step]);
+                    acc_sum += vpu_vdot_v1_v0();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_a = x->data[(i * in_features + t)/8];
@@ -686,20 +675,26 @@ void MiCo_Q2x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t a_qwords = in_features / 16;
-    const size_t remain = in_features - a_qwords * 16;
+    // For Q2x4: activation is 2-bit, weight is 4-bit
+    // Ratio: 4/2 = 2 weight loads per activation load
+    const size_t act_elems_per_load = VPU_ELEMS_Q2;
+    const size_t ratio = 4 / 2;
+    const size_t act_qword_step = act_elems_per_load / 16;  // 2-bit has 16 elements per qword
+    const size_t wt_qword_step = act_elems_per_load / 8;    // 4-bit has 8 elements per qword
+    const size_t elems_per_iter = act_elems_per_load;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 4);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 2);
-            for (size_t a_idx = 0; a_idx < a_qwords; a_idx++) {
-                vpu_load_v0(&a_ptr[a_idx]);
-                const size_t w_base = a_idx * 2;
-                vpu_load_v1(&w_ptr[w_base]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 1]);
-                acc_sum += vpu_vdot_v1_v0();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * act_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v1(&w_ptr[k * ratio * wt_qword_step + r * wt_qword_step]);
+                    acc_sum += vpu_vdot_v1_v0();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_a = x->data[(i * in_features + t)/4];
@@ -727,24 +722,26 @@ void MiCo_Q1x4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     int8_t temp_a;
     int8_t temp_w;
 
-    const size_t a_qwords = in_features / 32;
-    const size_t remain = in_features - a_qwords * 32;
+    // For Q1x4: activation is 1-bit, weight is 4-bit
+    // Ratio: 4/1 = 4 weight loads per activation load
+    const size_t act_elems_per_load = VPU_ELEMS_Q1;
+    const size_t ratio = 4 / 1;
+    const size_t act_qword_step = act_elems_per_load / 32;  // 1-bit has 32 elements per qword
+    const size_t wt_qword_step = act_elems_per_load / 8;    // 4-bit has 8 elements per qword
+    const size_t elems_per_iter = act_elems_per_load;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 8);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 2);
-            for (size_t a_idx = 0; a_idx < a_qwords; a_idx++) {
-                vpu_load_v0(&a_ptr[a_idx]);
-                const size_t w_base = a_idx * 4;
-                vpu_load_v1(&w_ptr[w_base + 0]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 1]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 2]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 3]);
-                acc_sum += vpu_vdot_v1_v0();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * act_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v1(&w_ptr[k * ratio * wt_qword_step + r * wt_qword_step]);
+                    acc_sum += vpu_vdot_v1_v0();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_a = x->data[(i * in_features + t)/8];
@@ -771,20 +768,26 @@ void MiCo_Q1x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
 
     int8_t temp_a;
     int8_t temp_w;
-    const size_t a_qwords = in_features / 32;
-    const size_t remain = in_features - a_qwords * 32;
+    // For Q1x2: activation is 1-bit, weight is 2-bit
+    // Ratio: 2/1 = 2 weight loads per activation load
+    const size_t act_elems_per_load = VPU_ELEMS_Q1;
+    const size_t ratio = 2 / 1;
+    const size_t act_qword_step = act_elems_per_load / 32;  // 1-bit has 32 elements per qword
+    const size_t wt_qword_step = act_elems_per_load / 16;   // 2-bit has 16 elements per qword
+    const size_t elems_per_iter = act_elems_per_load;
+    const size_t num_iters = in_features / elems_per_iter;
+    const size_t remain = in_features % elems_per_iter;
     for (size_t i = 0; i < batch_size; i++) {
         const qword *a_ptr = (const qword*)(x->data + i * in_features / 8);
         for (size_t j = 0; j < out_features; j++) {
             int32_t acc_sum = 0;
             const qword *w_ptr = (const qword*)(w->data + j * in_features / 4);
-            for (size_t a_idx = 0; a_idx < a_qwords; a_idx++) {
-                vpu_load_v0(&a_ptr[a_idx]);
-                const size_t w_base = a_idx * 2;
-                vpu_load_v1(&w_ptr[w_base]);
-                acc_sum += vpu_vdot_v1_v0();
-                vpu_load_v1(&w_ptr[w_base + 1]);
-                acc_sum += vpu_vdot_v1_v0();
+            for (size_t k = 0; k < num_iters; k++) {
+                vpu_load_v0(&a_ptr[k * act_qword_step]);
+                for (size_t r = 0; r < ratio; r++) {
+                    vpu_load_v1(&w_ptr[k * ratio * wt_qword_step + r * wt_qword_step]);
+                    acc_sum += vpu_vdot_v1_v0();
+                }
             }
             for (size_t t = in_features - remain; t < in_features; t++) {
                 temp_a = x->data[(i * in_features + t)/8];
