@@ -4,18 +4,26 @@ VEXII_LD = $(MICO_DIR)/targets/vexii_soc/soc.ld
 MABI?=ilp32
 MARCH?=rv32imc
 
+# Parse base ISA once (splits off any z* extensions after an underscore)
+BASE_ISA := $(firstword $(subst _, ,$(MARCH)))
+HAS_RV64 := $(findstring rv64,$(BASE_ISA))
+HAS_D    := $(findstring d,$(BASE_ISA))
+HAS_F    := $(findstring f,$(BASE_ISA))
+
 # ABI Correction based on MARCH
 MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico32
-ifeq ($(findstring rv64, $(MARCH)), rv64)
+ifeq ($(HAS_RV64),rv64)
 	MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico64
 	CFLAGS += -DMICO_ALIGN=8
-	ifneq ($(findstring f, $(MARCH)),)
+	ifneq ($(HAS_D),)
+		MABI = lp64d
+	else ifneq ($(HAS_F),)
 		MABI = lp64f
 	else
 		MABI = lp64
 	endif
 else
-	ifneq ($(findstring f, $(MARCH)),)
+	ifneq ($(HAS_F),)
 		MABI = ilp32f
 	else
 		MABI = ilp32
@@ -49,13 +57,13 @@ LDFLAGS += -Wl,--defsym=HEAP_SIZE=$(HEAP_SIZE)
 LDFLAGS += -Wl,--defsym=STACK_SIZE=$(STACK_SIZE)
 
 LDFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
-LDFLAGS += -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(VEXII_LD),-Map,$(BUILD)/$(MAIN).map,--print-memory-usage
+LDFLAGS += -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(VEXII_LD),-Map,$(BUILD)/$(notdir $(MAIN)).map,--print-memory-usage
 LDFLAGS += -L./ -lm -lc
 
-ifneq ($(findstring f, $(MARCH)),)
+ifneq ($(HAS_F)$(HAS_D),)
     LDFLAGS += -lgcc
 	CFLAGS += -DUSE_RVF
-else ifneq ($(findstring rv64, $(MARCH)),)
+else ifneq ($(HAS_RV64),)
 	LDFLAGS += -lgcc
 else ifneq ($(findstring m, $(MARCH)),)
     LDFLAGS += -L$(MICO_DIR)/lib/$(MARCH)/ -lrvfp
