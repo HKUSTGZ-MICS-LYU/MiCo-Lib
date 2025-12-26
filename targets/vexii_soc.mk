@@ -73,16 +73,19 @@ endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 ifneq ($(filter cfu, $(OPT)),)
-	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/*.c) $(wildcard $(VEXII_PATH)/cfu/*.S)
-	RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/v$(VLEN)/*.S)
-	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8))
-endif
-
-ifneq ($(filter legacy, $(OPT)),)
-	MICO_SIMD_DIR := $(MICO_SIMD_DIR)/legacy
+	ifneq ($(filter legacy, $(OPT)),)
+		RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/v$(VLEN)/*.S)
+		RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/legacy/*.c) $(wildcard $(VEXII_PATH)/cfu/legacy/*.S)
+	else
+		RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/*.c) $(wildcard $(VEXII_PATH)/cfu/*.S)
+	endif
+	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN)
 endif
 
 ifneq ($(filter simd, $(OPT)),)
+	ifneq ($(filter legacy, $(OPT)),)
+		MICO_SIMD_DIR := $(MICO_SIMD_DIR)/legacy
+	endif
 	MICO_SOURCES += $(wildcard $(MICO_SIMD_DIR)/*.c)
 	RISCV_SOURCE += $(wildcard $(MICO_SIMD_DIR)/*.S)
 endif
