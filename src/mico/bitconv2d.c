@@ -146,8 +146,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 //     printf("Im2Col MatMul Shape (block): %ldx%ldx%ld\n", 
                 //           qw.shape[0], qw.shape[1], qx.shape[0]);
                 // }
-                // #ifdef VLEN
-                const int VLEN = 64;
+                // TODO: Handle VLEN ?
                 // MatMul-Based Convolution for the current block
                 start = MiCo_time();
                 MiCo_runtime.matmul_matrix[qlog(wq)][qlog(aq)](qO, &qw, &qx);
