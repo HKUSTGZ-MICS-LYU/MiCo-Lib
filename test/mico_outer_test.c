@@ -1,5 +1,6 @@
 // Test for Outer-Product MatMul implementations
-// Compares outer-product results against reference implementation
+// Compares outer-product results against locally-defined reference implementations
+// that follow the same algorithmic logic as src/mico/qmatmul_ref.c
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,10 @@
 #include <stdint.h>
 
 #include "mico_qnn.h"
+
+// Test configuration
+#define MAX_ERRORS_TO_PRINT 5
+#define TEST_SEED 42
 
 // Test dimensions
 #ifndef N
@@ -364,7 +369,7 @@ static int compare_outputs(const int32_t *expected, const int32_t *actual, size_
     int errors = 0;
     for (size_t i = 0; i < size; i++) {
         if (expected[i] != actual[i]) {
-            if (errors < 5) {  // Only print first 5 errors
+            if (errors < MAX_ERRORS_TO_PRINT) {
                 printf("[%s] Mismatch at index %zu: expected %d, got %d\n", 
                        test_name, i, expected[i], actual[i]);
             }
@@ -383,7 +388,7 @@ int main() {
     printf("=== Outer-Product MatMul Regression Test ===\n");
     printf("Dimensions: N=%d, M=%d, K=%d\n\n", N, M, K);
     
-    srand(42);  // Fixed seed for reproducibility
+    srand(TEST_SEED);  // Fixed seed for reproducibility
     
     int total_errors = 0;
     
