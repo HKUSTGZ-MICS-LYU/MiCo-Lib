@@ -24,6 +24,10 @@ ifneq ($(filter outer, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/mico_outer/*.c)
 endif
 
+ifneq ($(filter tiled, $(OPT)),)
+	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/mico_tiled/*.c)
+endif
+
 ifneq ($(filter ref, $(OPT)),)
 	CFLAGS += -DREF
 endif
