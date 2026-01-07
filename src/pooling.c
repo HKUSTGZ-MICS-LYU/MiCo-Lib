@@ -108,3 +108,90 @@ void MiCo_adaptive_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     size_t k_size = input_size - s + 1;
     MiCo_avgpool4d_f32(y, x, k_size, 1, 0);
 }
+
+// 1D Pooling Functions with Layout NCL (Batch, Channels, Length)
+void MiCo_avgpool3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, 
+    const size_t k_size, const size_t stride, const size_t padding){
+    
+    size_t batch_size = x->shape[0];
+    size_t in_c = x->shape[1];
+    size_t in_l = x->shape[2];
+
+    size_t out_c = y->shape[1];
+    size_t out_l = (in_l + 2 * padding - k_size) / stride + 1;
+
+    MiCo_assert(out_l == y->shape[2], 
+        "[AvgPool1D] Output Shape Mismatched!");
+
+    MiCo_assert(out_c == in_c, 
+        "[AvgPool1D] Output Channel Mismatched!");
+
+    for (size_t b = 0; b < batch_size; b++){
+        for (size_t oc = 0; oc < out_c; oc++){
+            for (size_t ol = 0; ol < out_l; ol++){
+                float sum = 0;
+                size_t valid_count = 0;
+                for (size_t kl = 0; kl < k_size; kl++){
+                    // Calculate input position considering padding
+                    int il = (int)(ol * stride + kl) - (int)padding;
+                    
+                    // Check bounds (padding areas are treated as 0)
+                    if (il >= 0 && il < (int)in_l){
+                        sum += x->data[b * in_c * in_l + oc * in_l + il];
+                        valid_count++;
+                    }
+                }
+                // Average over valid elements only (excludes padding)
+                y->data[b * out_c * out_l + oc * out_l + ol] = 
+                    valid_count > 0 ? sum / valid_count : 0;
+            }
+        }
+    }
+}
+
+void MiCo_maxpool3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, 
+    const size_t k_size, const size_t stride, const size_t padding){
+    
+    size_t batch_size = x->shape[0];
+    size_t in_c = x->shape[1];
+    size_t in_l = x->shape[2];
+
+    size_t out_c = y->shape[1];
+    size_t out_l = (in_l + 2 * padding - k_size) / stride + 1;
+
+    MiCo_assert(out_l == y->shape[2], 
+        "[MaxPool1D] Output Shape Mismatched!");
+
+    MiCo_assert(out_c == in_c, 
+        "[MaxPool1D] Output Channel Mismatched!");
+
+    for (size_t b = 0; b < batch_size; b++){
+        for (size_t oc = 0; oc < out_c; oc++){
+            for (size_t ol = 0; ol < out_l; ol++){
+                float max = -FLOAT_MAX;
+                int has_valid = 0;
+                for (size_t kl = 0; kl < k_size; kl++){
+                    // Calculate input position considering padding
+                    int il = (int)(ol * stride + kl) - (int)padding;
+                    
+                    // Check bounds (padding areas are treated as -infinity)
+                    if (il >= 0 && il < (int)in_l){
+                        float data = x->data[b * in_c * in_l + oc * in_l + il];
+                        max = max > data ? max : data;
+                        has_valid = 1;
+                    }
+                }
+                y->data[b * out_c * out_l + oc * out_l + ol] = has_valid ? max : 0;
+            }
+        }
+    }
+}
+
+void MiCo_adaptive_avgpool3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, 
+    const size_t s){
+
+    // Infer Pooling Kernel Size
+    size_t input_size = x->shape[2];
+    size_t k_size = input_size - s + 1;
+    MiCo_avgpool3d_f32(y, x, k_size, 1, 0);
+}

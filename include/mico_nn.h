@@ -77,4 +77,11 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const size_t stride, const size_t padding, 
     const size_t dilation, const size_t groups, const size_t align);
 
+// 1D Convolution Functions
+void MiCo_bitconv1d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, 
+    const Tensor3D_Q8 *weight, const Tensor1D_F32 *bias, 
+    const qtype wq, const qtype aq,
+    const size_t stride, const size_t padding, 
+    const size_t dilation, const size_t groups, const size_t align);
+
 #endif // __MICO_NN_H
