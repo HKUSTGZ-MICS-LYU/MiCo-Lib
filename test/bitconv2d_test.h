@@ -1,6 +1,6 @@
 #define N 1
-#define INC 16
-#define INH 32
-#define INW 32
+#define INC 256
+#define INH 256
+#define INW 256
 #define K 5
-#define M 16
+#define M 256
