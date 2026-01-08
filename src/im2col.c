@@ -11,7 +11,7 @@ float im2col_get_pixel(float *im, int height, int width,
     return im[col + width*(row + height*channel)];
 }
 
-void im2col(float* data_im,
+void MiCo_im2col(float* data_im,
      int channels,  int height,  int width,
      int ksize,  int stride, int pad, float* data_col){
     

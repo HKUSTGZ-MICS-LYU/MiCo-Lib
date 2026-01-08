@@ -150,7 +150,7 @@ void MiCo_assert(const int condition, const char *message);
 // Im2Col Functions
 float im2col_get_pixel(float *im, int height, int width,
                         int row, int col, int channel, int pad);
-void im2col(float *data_im,
+void MiCo_im2col(float *data_im,
      int channels,  int height,  int width,
      int ksize,  int stride, int pad, float *data_col);
 void im2col_T(float *data_im,

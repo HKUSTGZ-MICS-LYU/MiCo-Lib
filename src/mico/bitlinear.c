@@ -10,7 +10,7 @@ extern long QUANT_TIMER;
 
 extern MiCoRuntime MiCo_runtime;
 
-void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
+__attribute__((weak)) void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
     const qtype wq, const qtype aq, const size_t align){
 
