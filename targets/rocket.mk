@@ -2,7 +2,7 @@ ROCKET_PATH = $(MICO_DIR)/targets/rocket
 
 CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
-CFLAGS += -DRISCV_ROCKET -DTEST_NUM=$(TEST_NUM)
+CFLAGS += -DUSE_CHIPYARD -DTEST_NUM=$(TEST_NUM)
 CFLAGS += -fno-common -fno-builtin-printf -specs=htif_nano.specs
 LDFLAGS += -static
 

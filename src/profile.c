@@ -11,6 +11,11 @@ __attribute__((weak)) long int MiCo_time(){
     #ifdef USE_HOST
     return clock() / (CLOCKS_PER_SEC / 1000000); // Convert to ms
     #else
+    #ifdef USE_CHIPYARD
+    unsigned long cycles;
+    asm volatile ("rdcycle %0" : "=r" (cycles));
+    return cycles;
+    #endif
     return 0;
     #endif
 }
