@@ -46,7 +46,9 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const size_t out_w = (in_w + 2 * padding - k_w) / stride + 1;
     
     const size_t kernel_size = k_h * k_w;
+    #ifndef USE_ALT_LAYOUT
     const size_t out_size = out_h * out_w;
+    #endif
 
 
     #ifdef USE_ALT_LAYOUT
@@ -68,7 +70,10 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const size_t in_c_per_group = in_c / groups;
     const size_t out_c_per_group = out_c / groups;
 
-    size_t b_addr, c_addr, h_addr;
+    size_t b_addr, h_addr;
+    #ifndef USE_ALT_LAYOUT
+    size_t c_addr;
+    #endif
 
     long start; // Profiler
 
@@ -78,6 +83,22 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             y->data[i] = 0.f;
         }
     } else {
+        #ifdef USE_ALT_LAYOUT
+        // NHWC output layout: (batch, height, width, channels)
+        for (size_t i = 0; i < batch_size; i++) {
+            b_addr = i * out_h * out_w * out_c;
+            for (size_t k = 0; k < out_h; k++) {
+                h_addr = b_addr + k * out_w * out_c;
+                for (size_t l = 0; l < out_w; l++) {
+                    size_t w_addr = h_addr + l * out_c;
+                    for (size_t j = 0; j < out_c; j++) {
+                        y->data[w_addr + j] = bias->data[j];
+                    }
+                }
+            }
+        }
+        #else
+        // NCHW output layout: (batch, channels, height, width)
         for (size_t i = 0; i < batch_size; i++) {
             b_addr = i * out_c * out_h * out_w;
             for (size_t j = 0; j < out_c; j++) {
@@ -90,6 +111,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 }
             }
         }
+        #endif
     }
     
     // Check if Need Alignment Padding
@@ -121,7 +143,15 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     for (size_t b = 0; b < batch_size; b++){
         for (size_t g = 0; g < groups; g++) {
             // Get the input data for the current group
+            #ifdef USE_ALT_LAYOUT
+            // NHWC layout: data is (batch, height, width, channels)
+            // For groups, we need to offset by g * in_c_per_group in the channel dimension
+            // The base pointer is at batch b, and we pass the group channel offset
+            float* img_group = x->data + (b * in_h * in_w * in_c) + (g * in_c_per_group);
+            #else
+            // NCHW layout: data is (batch, channels, height, width)
             float* img_group = x->data + (b * in_c * in_h * in_w) + (g * in_c_per_group * in_h * in_w);
+            #endif
             
             // Process output rows in blocks
             for (size_t row_offset = 0; row_offset < out_h; row_offset += block_rows) {
@@ -131,8 +161,17 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 
                 start = MiCo_time();
                 // Partial im2col on the current group - only process the needed rows
+                #ifdef USE_ALT_LAYOUT
+                // Use NHWC im2col for NHWC input layout
+                // Note: For grouped convolution with NHWC, we need a special im2col
+                // that can handle non-contiguous channel groups.
+                // For simplicity, we use a wrapper approach here.
+                im2col_block_T_NHWC_grouped(img_group, in_c_per_group, in_c, in_h, in_w, k_h, stride, padding, 
+                              col, row_offset, current_block_rows, out_w);
+                #else
                 im2col_block_T(img_group, in_c_per_group, in_h, in_w, k_h, stride, padding, 
                               col, row_offset, current_block_rows, out_w);
+                #endif
                 
                 Tensor2D_F32 x_col;
                 x_col.data = col;
@@ -155,14 +194,25 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 
                 // Get the weights for the current group
                 Tensor2D_Q8 qw;
+                #ifdef USE_ALT_LAYOUT
+                // HWIO layout: weights are (k_h, k_w, in_c, out_c)
+                // For grouped conv, we reshape to (in_c_per_group * k_h * k_w, out_c_per_group)
+                // The offset for group g starts at g * out_c_per_group in the out_c dimension
+                // Weight data shape: (k_h * k_w * in_c_per_group, out_c) -> we need K,M layout
+                size_t offset = (g * out_c_per_group);
+                qw.data = weight->data + offset;
+                qw.shape[0] = aligned_size;  // K dimension (kernel_size * in_c_per_group)
+                qw.shape[1] = out_c_per_group; // M dimension (output channels per group)
+                #else
                 size_t offset = (g * out_c_per_group * aligned_size) / (8 / wq);
                 qw.data = weight->data + offset;
                 qw.shape[0] = out_c_per_group;
                 qw.shape[1] = aligned_size;
+                #endif
                 qw.scale = weight->scale;
 
                 // Initialize qO for the current block
-                for(int i = 0; i < out_c_per_group * current_block_out_size; i++){
+                for(size_t i = 0; i < out_c_per_group * current_block_out_size; i++){
                     qO[i] = 0;
                 }
                 
@@ -174,9 +224,34 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 // TODO: Handle VLEN ?
                 // MatMul-Based Convolution for the current block
                 start = MiCo_time();
+                #ifdef USE_ALT_LAYOUT
+                // For NHWC: qx (activation) is first arg, qw (weight) is second
+                // Index order: [first_tensor_bits][second_tensor_bits]
+                MiCo_runtime.matmul_matrix[qlog(aq)][qlog(wq)](qO, &qx, &qw);
+                #else
+                // For NCHW: qw (weight) is first arg, qx (activation) is second
                 MiCo_runtime.matmul_matrix[qlog(wq)][qlog(aq)](qO, &qw, &qx);
+                #endif
                 QMATMUL_TIMER += MiCo_time() - start;
 
+                #ifdef USE_ALT_LAYOUT
+                // NHWC output layout: (batch, out_h, out_w, out_c)
+                // qO is in (current_block_out_size, out_c_per_group) layout
+                // We need to write to y at positions (b, row_offset+h, w, g*out_c_per_group + oc)
+                float scale = weight->scale * qx.scale;
+                start = MiCo_time();
+                for (size_t j = 0; j < current_block_out_size; j++) {
+                    size_t h_out = row_offset + (j / out_w);
+                    size_t w_out = j % out_w;
+                    size_t y_base = (b * out_h * out_w * out_c) + (h_out * out_w * out_c) + (w_out * out_c) + (g * out_c_per_group);
+                    for (size_t oc = 0; oc < out_c_per_group; oc++) {
+                        size_t qo_idx = j * out_c_per_group + oc;
+                        y->data[y_base + oc] += (float)qO[qo_idx] * scale;
+                    }
+                }
+                QUANT_TIMER += MiCo_time() - start;
+                #else
+                // NCHW output layout
                 // Calculate output position for this block
                 size_t block_output_addr = b * out_c * out_size + 
                                           (g * out_c_per_group * out_size) + 
@@ -193,6 +268,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                     }
                 }
                 QUANT_TIMER += MiCo_time() - start;
+                #endif
                 // printf("DeQuant Speed: %ld\n", MiCo_time() - start);
             }
         }

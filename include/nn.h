@@ -185,6 +185,18 @@ void im2col_block_T_aligned(const float* data_im, const int channels,
     const int stride, const int pad, float* data_col,
     const int row_offset, const int num_rows, const int out_width);
 
+// Im2Col for NHWC input layout
+void im2col_block_T_NHWC(const float* data_im, const int channels,
+    const int height, const int width, const int kernel_size,
+    const int stride, const int pad, float* data_col,
+    const int row_offset, const int num_rows, const int out_width);
+
+// Im2Col for NHWC input layout with grouped convolution support
+void im2col_block_T_NHWC_grouped(const float* data_im, const int channels_per_group,
+    const int total_channels, const int height, const int width,
+    const int kernel_size, const int stride, const int pad, float* data_col,
+    const int row_offset, const int num_rows, const int out_width);
+
 // Multi-Head Attention Functions
 typedef struct MHA_Config
 {
