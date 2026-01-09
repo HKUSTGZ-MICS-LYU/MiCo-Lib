@@ -7,16 +7,24 @@ __attribute__((weak)) void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, cons
     
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
+    #ifdef USE_ALT_LAYOUT
+    const size_t out_features = w->shape[1];
+    #else
     const size_t out_features = w->shape[0];
-
+    #endif
     int32_t acc;
 
     for (size_t i = 0; i < batch_size; i++) {
         for (size_t j = 0; j < out_features; j++) {
             acc = 0;
             for (size_t k = 0; k < in_features; k++) {
+                #ifdef USE_ALT_LAYOUT
+                acc += x->data[i * in_features + k] * \
+                    w->data[k * out_features + j];
+                #else
                 acc += x->data[i * in_features + k] * \
                     w->data[j * in_features + k];
+                #endif
             }
             O[i * out_features + j] = acc;
         }

@@ -22,8 +22,12 @@ __attribute__((weak)) void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F3
 
     const size_t b = x->shape[0];
     const size_t n = x->shape[1];
+    #ifdef USE_ALT_LAYOUT
+    const size_t m = weight->shape[1];
+    #else
     const size_t m = weight->shape[0];
-
+    #endif
+    
     // Address
     size_t baddr;
     long start;

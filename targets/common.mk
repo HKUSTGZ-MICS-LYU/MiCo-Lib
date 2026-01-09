@@ -24,6 +24,6 @@ ifneq ($(filter ref, $(OPT)),)
 	CFLAGS += -DREF
 endif
 
-ifneq ($(filter quant_reuse, $(OPT)),)
-	CFLAGS += -DQUANT_REUSE
+ifneq ($(filter alt-layout, $(OPT)),)
+	CFLAGS += -DUSE_ALT_LAYOUT
 endif

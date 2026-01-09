@@ -10,8 +10,14 @@ __attribute__((weak)) void MiCo_linear_f32(
     // nn_assert(y->shape[0] == x->shape[0] && y->shape[1] == weight->shape[0], "Cannot perform Linear on tensors of different shapes");
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
-    const size_t out_features = weight->shape[0];
 
+    // Detecting Weight Layout
+    #ifdef USE_ALT_LAYOUT
+    const size_t out_features = weight->shape[1];
+    #else
+    const size_t out_features = weight->shape[0];
+    #endif
+    
     // Initialize Output Tensor
     if (bias->shape[0] == 0){
         for (size_t i = 0; i < batch_size * out_features; i++) {
