@@ -6,9 +6,30 @@ void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     Tensor1D_F32 *mean, const Tensor1D_F32 *var, 
     const float eps){
     size_t batch_size = x->shape[0];
+    #ifdef USE_ALT_LAYOUT
+    size_t in_h = x->shape[1];
+    size_t in_w = x->shape[2];
+    size_t channel_size = x->shape[3];
+    #else
     size_t channel_size = x->shape[1];
-    size_t feature_size = x->shape[2] * x->shape[3];
+    size_t in_h = x->shape[2];
+    size_t in_w = x->shape[3];
+    #endif
 
+    #ifdef USE_ALT_LAYOUT
+    for (size_t i = 0; i < batch_size; i++){
+        for (size_t h = 0; h < in_h; h++){
+            for (size_t w = 0; w < in_w; w++){
+                for (size_t j = 0; j < channel_size; j++){
+                    float scale = weight->data[j] / sqrtf(var->data[j] + eps);
+                    size_t idx = OFFSET_4D(i, j, h, w, batch_size, channel_size, in_h, in_w);
+                    y->data[idx] = (x->data[idx] - mean->data[j]) * scale + bias->data[j];
+                }
+            }
+        }
+    }
+    #else
+    size_t feature_size = in_h * in_w;
     for (size_t i = 0; i < batch_size; i++){
         for (size_t j = 0; j < channel_size; j++){
             float scale = weight->data[j] / sqrtf(var->data[j] + eps);
@@ -18,6 +39,7 @@ void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             }
         }
     }
+    #endif
     return;
 }
 

@@ -4,19 +4,33 @@ void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const size_t k_size, const size_t stride, const size_t padding){
     
     size_t batch_size = x->shape[0];
+    #ifdef USE_ALT_LAYOUT
+    size_t in_h = x->shape[1];
+    size_t in_w = x->shape[2];
+    size_t in_c = x->shape[3];
+    #else
     size_t in_c = x->shape[1];
     size_t in_h = x->shape[2];
     size_t in_w = x->shape[3];
+    #endif
 
     size_t k_h = k_size;
     size_t k_w = k_size;
 
     size_t out_c = y->shape[1];
+    #ifdef USE_ALT_LAYOUT
+    out_c = y->shape[3];
+    #endif
     size_t out_h = (in_h + 2 * padding - k_h) / stride + 1;
     size_t out_w = (in_w + 2 * padding - k_w) / stride + 1;
 
+    #ifdef USE_ALT_LAYOUT
+    MiCo_assert(out_h == y->shape[1] && out_w == y->shape[2], 
+        "[AvgPool2D] Output Shape Mismatched!");
+    #else
     MiCo_assert(out_h == y->shape[2] && out_w == y->shape[3], 
         "[AvgPool2D] Output Shape Mismatched!");
+    #endif
 
     MiCo_assert(out_c == in_c, 
         "[AvgPool2D] Output Channel Mismatched!");
@@ -35,13 +49,13 @@ void MiCo_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                             
                             // Check bounds (padding areas are treated as 0)
                             if (ih >= 0 && ih < (int)in_h && iw >= 0 && iw < (int)in_w){
-                                sum += x->data[b * in_c * in_h * in_w + oc * in_h * in_w + ih * in_w + iw];
+                                sum += x->data[OFFSET_4D(b, oc, ih, iw, batch_size, in_c, in_h, in_w)];
                                 valid_count++;
                             }
                         }
                     }
                     // Average over valid pixels only (excludes padding)
-                    y->data[b * out_c * out_h * out_w + oc * out_h * out_w + oh * out_w + ow] = 
+                    y->data[OFFSET_4D(b, oc, oh, ow, batch_size, out_c, out_h, out_w)] = 
                         valid_count > 0 ? sum / valid_count : 0;
                 }
             }
@@ -53,19 +67,33 @@ void MiCo_maxpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const size_t k_size, const size_t stride, const size_t padding){
     
     size_t batch_size = x->shape[0];
+    #ifdef USE_ALT_LAYOUT
+    size_t in_h = x->shape[1];
+    size_t in_w = x->shape[2];
+    size_t in_c = x->shape[3];
+    #else
     size_t in_c = x->shape[1];
     size_t in_h = x->shape[2];
     size_t in_w = x->shape[3];
+    #endif
 
     size_t k_h = k_size;
     size_t k_w = k_size;
 
     size_t out_c = y->shape[1];
+    #ifdef USE_ALT_LAYOUT
+    out_c = y->shape[3];
+    #endif
     size_t out_h = (in_h + 2 * padding - k_h) / stride + 1;
     size_t out_w = (in_w + 2 * padding - k_w) / stride + 1;
 
+    #ifdef USE_ALT_LAYOUT
+    MiCo_assert(out_h == y->shape[1] && out_w == y->shape[2], 
+        "[MaxPool2D] Output Shape Mismatched!");
+    #else
     MiCo_assert(out_h == y->shape[2] && out_w == y->shape[3], 
         "[MaxPool2D] Output Shape Mismatched!");
+    #endif
 
     MiCo_assert(out_c == in_c, 
         "[MaxPool2D] Output Channel Mismatched!");
@@ -84,14 +112,13 @@ void MiCo_maxpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                             
                             // Check bounds (padding areas are treated as -infinity)
                             if (ih >= 0 && ih < (int)in_h && iw >= 0 && iw < (int)in_w){
-                                float data = x->data[b * in_c * in_h * in_w + oc * in_h * in_w + ih * in_w + iw];
+                                float data = x->data[OFFSET_4D(b, oc, ih, iw, batch_size, in_c, in_h, in_w)];
                                 max = max > data ? max : data;
                                 has_valid = 1;
                             }
                         }
                     }
-                    y->data[b * out_c * out_h * out_w + 
-                        oc * out_h * out_w + oh * out_w + ow] = has_valid ? max : 0;
+                    y->data[OFFSET_4D(b, oc, oh, ow, batch_size, out_c, out_h, out_w)] = has_valid ? max : 0;
                 }
             }
         }
@@ -102,9 +129,15 @@ void MiCo_adaptive_avgpool4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const size_t s){
 
     // Infer Pooling Kernel Size
+    #ifdef USE_ALT_LAYOUT
+    MiCo_assert(x->shape[1] == x->shape[2], 
+        "[AdaptiveAvgPool2D] Invalid Input, H =/= W!");
+    size_t input_size = x->shape[1];
+    #else
     MiCo_assert(x->shape[2] == x->shape[3], 
         "[AdaptiveAvgPool2D] Invalid Input, H =/= W!");
     size_t input_size = x->shape[2];
+    #endif
     size_t k_size = input_size - s + 1;
     MiCo_avgpool4d_f32(y, x, k_size, 1, 0);
 }

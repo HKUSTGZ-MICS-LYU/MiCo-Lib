@@ -59,3 +59,45 @@ void MiCo_channel_shuffle(Tensor4D_F32 *y, const Tensor4D_F32 *x,
         }
     }
 }
+
+void __NCHW_to_NHWC_inplace(float* data, const size_t N, const size_t C, 
+    const size_t H, const size_t W){
+
+    float* temp = (float*)malloc(
+        N * H * W * C * sizeof(float)
+    );
+    memcpy(temp, data, N * H * W * C * sizeof(float));
+    for (size_t n = 0; n < N; n++){
+        for (size_t h = 0; h < H; h++){
+            for (size_t w = 0; w < W; w++){
+                for (size_t c = 0; c < C; c++){
+                    size_t nhwc_index = n * H * W * C + h * W * C + w * C + c;
+                    size_t nchw_index = n * C * H * W + c * H * W + h * W + w;
+                    data[nhwc_index] = temp[nchw_index];
+                }
+            }
+        }
+    }
+    free(temp);
+}
+
+void __NHWC_to_NCHW_inplace(float* data, const size_t N, const size_t C, 
+    const size_t H, const size_t W){
+
+    float* temp = (float*)malloc(
+        N * H * W * C * sizeof(float)
+    );
+    memcpy(temp, data, N * H * W * C * sizeof(float));
+    for (size_t n = 0; n < N; n++){
+        for (size_t c = 0; c < C; c++){
+            for (size_t h = 0; h < H; h++){
+                for (size_t w = 0; w < W; w++){
+                    size_t nchw_index = n * C * H * W + c * H * W + h * W + w;
+                    size_t nhwc_index = n * H * W * C + h * W * C + w * C + c;
+                    data[nchw_index] = temp[nhwc_index];
+                }
+            }
+        }
+    }
+    free(temp);
+}

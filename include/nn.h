@@ -16,6 +16,16 @@
 #define MICO_ALIGN 4
 #endif
 
+#ifdef USE_ALT_LAYOUT
+// NHWC Layout: N, H, W, C
+// Access: (n, c, h, w) -> n*H*W*C + h*W*C + w*C + c
+#define OFFSET_4D(n, c, h, w, N, C, H, W) ((n) * (H) * (W) * (C) + (h) * (W) * (C) + (w) * (C) + (c))
+#else
+// NCHW Layout: N, C, H, W
+// Access: (n, c, h, w) -> n*C*H*W + c*H*W + h*W + w
+#define OFFSET_4D(n, c, h, w, N, C, H, W) ((n) * (C) * (H) * (W) + (c) * (H) * (W) + (h) * (W) + (w))
+#endif
+
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
@@ -130,6 +140,14 @@ void MiCo_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
 // Channel Shuffle Functions (for ShuffleNet)
 void MiCo_channel_shuffle(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t channels, const size_t groups);
+
+// Layout Conversion Functions
+void MiCo_NHWC2NCHW_flatten_f32(Tensor2D_F32 *y, const Tensor4D_F32 *x);
+
+void __NCHW_to_NHWC_inplace(float* data, const size_t N, const size_t C, 
+    const size_t H, const size_t W);
+void __NHWC_to_NCHW_inplace(float* data, const size_t N, const size_t C, 
+    const size_t H, const size_t W);
 
 // Utility Functions
 void MiCo_print_tensor2d_f32(const Tensor2D_F32 *x);
