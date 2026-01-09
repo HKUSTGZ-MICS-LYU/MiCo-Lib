@@ -20,25 +20,50 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 
     const size_t batch_size = x->shape[0];
 
-    const size_t in_c = x->shape[1];
-    const size_t in_h = x->shape[2];
-    const size_t in_w = x->shape[3];
+    #ifdef USE_ALT_LAYOUT
+    // Layout NHWC
+    size_t in_h = x->shape[1];
+    size_t in_w = x->shape[2];
+    size_t in_c = x->shape[3];
+    
+    // Layout HWIO
+    size_t k_h = weight->shape[0];
+    size_t k_w = weight->shape[1];
 
-    const size_t k_h = weight->shape[2];
-    const size_t k_w = weight->shape[3];
+    size_t out_c = y->shape[3];
+    #else
+    size_t in_c = x->shape[1];
+    size_t in_h = x->shape[2];
+    size_t in_w = x->shape[3];
 
-    const size_t out_c = y->shape[1];
+    size_t k_h = weight->shape[2];
+    size_t k_w = weight->shape[3];
+
+    size_t out_c = y->shape[1];
+    #endif
+
     const size_t out_h = (in_h + 2 * padding - k_h) / stride + 1;
     const size_t out_w = (in_w + 2 * padding - k_w) / stride + 1;
     
     const size_t kernel_size = k_h * k_w;
     const size_t out_size = out_h * out_w;
 
+
+    #ifdef USE_ALT_LAYOUT
+    MiCo_assert(out_h == y->shape[1] && out_w == y->shape[2], 
+        "[Conv2D] Output Shape Mismatched!");
+
+    MiCo_assert(in_c % groups == 0 && out_c % groups == 0, 
+        "[Conv2D] Group Mismatched!");
+    MiCo_assert(wq==8 && aq==8, 
+        "[BitConv2D] NHWC currently only support 8-bit quantization!");
+    #else
     MiCo_assert(out_h == y->shape[2] && out_w == y->shape[3], 
         "[Conv2D] Output Shape Mismatched!");
 
     MiCo_assert(in_c % groups == 0 && out_c % groups == 0, 
         "[Conv2D] Group Mismatched!");
+    #endif
 
     const size_t in_c_per_group = in_c / groups;
     const size_t out_c_per_group = out_c / groups;
