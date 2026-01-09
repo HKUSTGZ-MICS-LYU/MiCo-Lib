@@ -151,3 +151,96 @@ void im2col_block_T_aligned(const float* data_im, const int channels,
         }
     }
 }
+
+// Im2Col for NHWC input layout
+// Input: data_im in NHWC format (height, width, channels)
+// Output: data_col in transposed format for matmul
+// The output matrix has shape (out_h * out_w, kernel_h * kernel_w * channels)
+// where each row corresponds to one output position
+// Column ordering matches HWIO weight layout: ic varies fastest, then kw, then kh
+void im2col_block_T_NHWC(const float* data_im, const int channels,
+                   const int height, const int width, const int kernel_size,
+                   const int stride, const int pad, float* data_col,
+                   const int row_offset, const int num_rows, const int out_width) {
+    
+    const int width_col = (width + 2 * pad - kernel_size) / stride + 1;
+    const int channels_col = channels * kernel_size * kernel_size;
+    
+    // Calculate parameters for the partial block
+    const int start_h = row_offset;
+    const int end_h = row_offset + num_rows;
+    
+    // Column ordering to match HWIO: iterate kh (slowest), then kw, then ic (fastest)
+    for (int kh = 0; kh < kernel_size; ++kh) {
+        for (int kw = 0; kw < kernel_size; ++kw) {
+            for (int ic = 0; ic < channels; ++ic) {
+                // Column index in the output matrix
+                int c = (kh * kernel_size + kw) * channels + ic;
+                
+                for (int h = start_h; h < end_h; ++h) {
+                    for (int w = 0; w < width_col; ++w) {
+                        const int h_pad = h * stride - pad + kh;
+                        const int w_pad = w * stride - pad + kw;
+                        
+                        // Calculate output index in our partial col matrix
+                        int out_idx = ((h - start_h) * out_width + w) * channels_col + c;
+                        
+                        if (h_pad >= 0 && h_pad < height && w_pad >= 0 && w_pad < width) {
+                            // NHWC: (h_pad * width + w_pad) * channels + ic
+                            data_col[out_idx] = data_im[(h_pad * width + w_pad) * channels + ic];
+                        } else {
+                            data_col[out_idx] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Im2Col for NHWC input layout with grouped convolution support
+// Input: data_im points to the start of the channel group in NHWC format
+// The total channels stride is total_channels, but we only extract channels_per_group channels
+// Output: data_col in transposed format for matmul
+// The output matrix has shape (out_h * out_w, kernel_h * kernel_w * channels_per_group)
+// Column ordering matches HWIO weight layout: ic varies fastest, then kw, then kh
+void im2col_block_T_NHWC_grouped(const float* data_im, const int channels_per_group,
+                   const int total_channels, const int height, const int width, 
+                   const int kernel_size, const int stride, const int pad, float* data_col,
+                   const int row_offset, const int num_rows, const int out_width) {
+    
+    const int width_col = (width + 2 * pad - kernel_size) / stride + 1;
+    const int channels_col = channels_per_group * kernel_size * kernel_size;
+    
+    // Calculate parameters for the partial block
+    const int start_h = row_offset;
+    const int end_h = row_offset + num_rows;
+    
+    // Column ordering to match HWIO: iterate kh (slowest), then kw, then ic (fastest)
+    for (int kh = 0; kh < kernel_size; ++kh) {
+        for (int kw = 0; kw < kernel_size; ++kw) {
+            for (int ic = 0; ic < channels_per_group; ++ic) {
+                // Column index in the output matrix
+                int c = (kh * kernel_size + kw) * channels_per_group + ic;
+                
+                for (int h = start_h; h < end_h; ++h) {
+                    for (int w = 0; w < width_col; ++w) {
+                        const int h_pad = h * stride - pad + kh;
+                        const int w_pad = w * stride - pad + kw;
+                        
+                        // Calculate output index in our partial col matrix
+                        int out_idx = ((h - start_h) * out_width + w) * channels_col + c;
+                        
+                        if (h_pad >= 0 && h_pad < height && w_pad >= 0 && w_pad < width) {
+                            // NHWC with groups: use total_channels as stride, ic as local channel offset
+                            // data_im already points to the start of the channel group
+                            data_col[out_idx] = data_im[(h_pad * width + w_pad) * total_channels + ic];
+                        } else {
+                            data_col[out_idx] = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
