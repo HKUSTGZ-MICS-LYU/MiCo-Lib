@@ -158,6 +158,7 @@ void im2col_block_T_aligned(const float* data_im, const int channels,
 // The output matrix has shape (out_h * out_w, kernel_h * kernel_w * channels)
 // where each row corresponds to one output position
 // Column ordering matches HWIO weight layout: ic varies fastest, then kw, then kh
+// Note: kernel_size parameter assumes square kernels (kernel_h == kernel_w)
 void im2col_block_T_NHWC(const float* data_im, const int channels,
                    const int height, const int width, const int kernel_size,
                    const int stride, const int pad, float* data_col,
@@ -199,11 +200,14 @@ void im2col_block_T_NHWC(const float* data_im, const int channels,
 }
 
 // Im2Col for NHWC input layout with grouped convolution support
-// Input: data_im points to the start of the channel group in NHWC format
-// The total channels stride is total_channels, but we only extract channels_per_group channels
+// Input: data_im points to the beginning of the batch's spatial data with a channel offset.
+//        The total_channels parameter specifies the memory stride between pixels.
+//        For group g, data_im should be: base + g * channels_per_group
+//        This allows extracting a subset of channels from NHWC data.
 // Output: data_col in transposed format for matmul
 // The output matrix has shape (out_h * out_w, kernel_h * kernel_w * channels_per_group)
 // Column ordering matches HWIO weight layout: ic varies fastest, then kw, then kh
+// Note: kernel_size parameter assumes square kernels (kernel_h == kernel_w)
 void im2col_block_T_NHWC_grouped(const float* data_im, const int channels_per_group,
                    const int total_channels, const int height, const int width, 
                    const int kernel_size, const int stride, const int pad, float* data_col,
