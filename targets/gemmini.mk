@@ -3,7 +3,7 @@ GEMMINI_PATH = $(MICO_DIR)/targets/gemmini
 
 CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
-CFLAGS += -DUSE_CHIPYARD -DTEST_NUM=$(TEST_NUM) -DBAREMETAL -DUSE_ALT_LAYOUT
+CFLAGS += -DUSE_CHIPYARD -DTEST_NUM=$(TEST_NUM) -DBAREMETAL -DUSE_ALT_LAYOUT -DUSE_GEMMINI
 CFLAGS += -fno-common -fno-builtin-printf -specs=htif_nano.specs
 LDFLAGS += -static
 

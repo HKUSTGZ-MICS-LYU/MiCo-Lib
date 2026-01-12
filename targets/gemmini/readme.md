@@ -1,1 +1,0 @@
-Copy from https://github.com/ucb-bar/Baremetal-NN.

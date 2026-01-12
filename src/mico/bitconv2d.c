@@ -12,7 +12,7 @@ extern long IM2COL_TIMER;
 extern MiCoRuntime MiCo_runtime;
 
 // TODO: Maybe we have too many arguments here
-void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
+__attribute__((weak)) void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const Tensor4D_Q8 *weight, const Tensor1D_F32 *bias, 
     const qtype wq, const qtype aq,
     const size_t stride, const size_t padding, 
