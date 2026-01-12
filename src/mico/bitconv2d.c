@@ -229,6 +229,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                     // Grouped convolution - need to copy weights with correct stride
                     // Source stride: out_c (total output channels)
                     // Destination stride: out_c_per_group
+                    // TODO: This is not efficent, consider pre-processing weights at codegen
                     size_t group_start_oc = g * out_c_per_group;
                     for (size_t k = 0; k < weight_k; k++) {
                         for (size_t m = 0; m < weight_m; m++) {
