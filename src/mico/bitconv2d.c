@@ -140,6 +140,7 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     qbyte* temp_weight = NULL;
     if (groups > 1) {
         temp_weight = malloc(aligned_size * out_c_per_group * sizeof(qbyte));
+        MiCo_assert(temp_weight != NULL, "Failed to allocate temp_weight buffer");
     }
     #endif
 
