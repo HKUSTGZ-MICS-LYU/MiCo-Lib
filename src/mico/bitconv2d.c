@@ -134,6 +134,14 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 
     float* col = malloc(in_c_per_group * kernel_size * block_out_size * sizeof(float));
     int32_t *qO = malloc(out_c_per_group * block_out_size * sizeof(int32_t));
+    
+    #ifdef USE_ALT_LAYOUT
+    // Allocate temp buffer for weight reordering in grouped convolution
+    qbyte* temp_weight = NULL;
+    if (groups > 1) {
+        temp_weight = malloc(aligned_size * out_c_per_group * sizeof(qbyte));
+    }
+    #endif
 
     size_t qx_size = aligned_size * block_out_size * sizeof(qbyte);
     qx_size /= (8 / aq); // Num of Act per Byte
@@ -195,14 +203,43 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
                 // Get the weights for the current group
                 Tensor2D_Q8 qw;
                 #ifdef USE_ALT_LAYOUT
-                // HWIO layout: weights are (k_h, k_w, in_c, out_c)
-                // For grouped conv, we reshape to (in_c_per_group * k_h * k_w, out_c_per_group)
-                // The offset for group g starts at g * out_c_per_group in the out_c dimension
-                // Weight data shape: (k_h * k_w * in_c_per_group, out_c) -> we need K,M layout
-                size_t offset = (g * out_c_per_group);
-                qw.data = weight->data + offset;
-                qw.shape[0] = aligned_size;  // K dimension (kernel_size * in_c_per_group)
-                qw.shape[1] = out_c_per_group; // M dimension (output channels per group)
+                // HWIO layout: weights are stored as (k_h, k_w, in_c_per_group, out_c)
+                // where out_c is the total output channels across all groups.
+                // For matmul, we need a (K, M) matrix where:
+                //   K = kernel_size * in_c_per_group (aligned_size)
+                //   M = out_c_per_group
+                // 
+                // The weight data stride is out_c (total), but we only need out_c_per_group columns
+                // starting at column g * out_c_per_group.
+                // 
+                // For the matmul: w->data[k * out_features + j]
+                // When groups == 1, we can use the weights directly since out_c == out_c_per_group.
+                // When groups > 1, we need to copy weights to a temp buffer with correct stride.
+                
+                size_t weight_k = aligned_size;  // K dimension
+                size_t weight_m = out_c_per_group; // M dimension
+                
+                if (groups == 1) {
+                    // No grouping - use weights directly
+                    qw.data = weight->data;
+                    qw.shape[0] = weight_k;
+                    qw.shape[1] = weight_m;
+                } else {
+                    // Grouped convolution - need to copy weights with correct stride
+                    // Source stride: out_c (total output channels)
+                    // Destination stride: out_c_per_group
+                    size_t group_start_oc = g * out_c_per_group;
+                    for (size_t k = 0; k < weight_k; k++) {
+                        for (size_t m = 0; m < weight_m; m++) {
+                            // Source index: k * out_c + (group_start_oc + m)
+                            // Destination index: k * weight_m + m
+                            temp_weight[k * weight_m + m] = weight->data[k * out_c + group_start_oc + m];
+                        }
+                    }
+                    qw.data = temp_weight;
+                    qw.shape[0] = weight_k;
+                    qw.shape[1] = weight_m;
+                }
                 #else
                 size_t offset = (g * out_c_per_group * aligned_size) / (8 / wq);
                 qw.data = weight->data + offset;
@@ -273,6 +310,11 @@ void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
             }
         }
     }
+    #ifdef USE_ALT_LAYOUT
+    if (temp_weight != NULL) {
+        free(temp_weight);
+    }
+    #endif
     free(qO);
     free(col);
 }
