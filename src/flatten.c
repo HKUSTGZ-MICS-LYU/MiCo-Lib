@@ -1,5 +1,5 @@
 #include "nn.h"
-
+#include <string.h>
 
 void MiCo_flatten2d_f32(Tensor2D_F32 *y, const Tensor4D_F32 *x){
     y->shape[0] = x->shape[0];

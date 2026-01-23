@@ -1,3 +1,3 @@
-#define N 128
-#define M 128
-#define K 128
+#define N 1
+#define M 4096
+#define K 4096

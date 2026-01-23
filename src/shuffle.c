@@ -1,6 +1,5 @@
 #include "nn.h"
-
-#include "nn.h"
+#include <string.h>
 
 void MiCo_channel_shuffle(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
     const size_t channels, const size_t groups) {
