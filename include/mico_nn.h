@@ -65,9 +65,22 @@ typedef struct{
     qtype wq; // weight quantization bits
 } Tensor4D_Q8; // 4-D Tensor
 
+// Group-wise quantized 2D tensor with per-group scales
+typedef struct{
+    size_t shape[2];
+    qbyte *data;
+    float *scales;      // per-group scales
+    size_t group_size;  // size of each group
+    qtype wq; // weight quantization bits
+} Tensor2D_Q8_Groupwise; // 2-D Tensor with group-wise quantization
+
 // Dense/Linear Functions
 void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
+    const qtype wq, const qtype aq, const size_t align);
+
+void MiCo_groupwise_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
+    const Tensor2D_Q8_Groupwise *weight, const Tensor1D_F32 *bias,
     const qtype wq, const qtype aq, const size_t align);
 
 // Convolution Functions
