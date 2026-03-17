@@ -33,11 +33,16 @@ endif
 REPAET?=0
 
 RAM_SIZE?=256K
+SPARSE_RAM_SIZE?=256M
 HEAP_SIZE?=32K
 STACK_SIZE?=$(HEAP_SIZE)
+SPRAM?=
+
+ifeq ($(SPRAM), 1)
+	VEXII_LD = $(MICO_DIR)/targets/vexii_soc/soc_sp.ld
+endif
 
 VLEN ?= 128
-
 CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
 
@@ -53,6 +58,7 @@ CFLAGS += -Wno-implicit-int -Wno-implicit-function-declaration
 CFLAGS += -I${VEXII_PATH}/ -I${VEXII_PATH}/driver
 
 LDFLAGS += -Wl,--defsym=RAM_SIZE=$(RAM_SIZE)
+LDFLAGS += -Wl,--defsym=SPARSE_RAM_SIZE=$(SPARSE_RAM_SIZE)
 LDFLAGS += -Wl,--defsym=HEAP_SIZE=$(HEAP_SIZE)
 LDFLAGS += -Wl,--defsym=STACK_SIZE=$(STACK_SIZE)
 
