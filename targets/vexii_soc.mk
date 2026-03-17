@@ -40,6 +40,8 @@ SPRAM?=
 
 ifeq ($(SPRAM), 1)
 	VEXII_LD = $(MICO_DIR)/targets/vexii_soc/soc_sp.ld
+	HEAP_SIZE = 32M
+	STACK_SIZE = 32M
 endif
 
 VLEN ?= 128
