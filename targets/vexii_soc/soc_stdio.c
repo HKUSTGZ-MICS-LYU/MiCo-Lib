@@ -189,11 +189,20 @@ int vprintf(const char* format, va_list ap) {
     return n;
 }
 
-int printf(const char *format, ...)
-{
+int printf(const char *format, ...){
     va_list ap;
     va_start(ap, format);
     int n = vprintf(format, ap);
+    va_end(ap);
+    return n;
+}
+
+int vsprintf(char *str, const char *format, ... ){
+    va_list ap;
+    va_start(ap, format);
+    struct buf_sink s = { .dst = str, .cap = (unsigned long)-1, .len = 0 };
+    int n = kvprintf(sink_buf, &s, format, ap);
+    str[s.len] = '\0';
     va_end(ap);
     return n;
 }

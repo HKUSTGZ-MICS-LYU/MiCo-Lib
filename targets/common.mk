@@ -1,4 +1,4 @@
-
+C_DEFINES ?=
 # Software Optimization
 ifneq ($(filter unroll, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(MICO_DIR)/src/mico_unrolled/*.c)
@@ -27,3 +27,5 @@ endif
 ifneq ($(filter alt-layout, $(OPT)),)
 	CFLAGS += -DUSE_ALT_LAYOUT
 endif
+
+CFLAGS += $(C_DEFINES)
