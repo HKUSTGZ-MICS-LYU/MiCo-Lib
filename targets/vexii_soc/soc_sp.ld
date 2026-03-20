@@ -48,6 +48,15 @@ SECTIONS
   PROVIDE (__etext = .);
   PROVIDE (_etext = .);
   PROVIDE (etext = .);
+  /* Remaining on-chip RAM (ram_exec) after code.
+     Can be used from C via:
+       extern uint8_t __onchip_data_start[], __onchip_data_end[];
+  */
+  PROVIDE( __onchip_data_start = ALIGN(8) );
+  PROVIDE( __onchip_data_end   = ORIGIN(ram_exec) + LENGTH(ram_exec) );
+  PROVIDE( __onchip_data_size  = __onchip_data_end - __onchip_data_start );
+  PROVIDE( _onchip_data_start = __onchip_data_start );
+  PROVIDE( _onchip_data_end   = __onchip_data_end );
 
   . = ALIGN(4);
 
