@@ -48,6 +48,15 @@ SECTIONS
   PROVIDE (__etext = .);
   PROVIDE (_etext = .);
   PROVIDE (etext = .);
+
+  /* On-chip RAM section for SPRAM data */
+  .onchip :
+  {
+    PROVIDE( __onchip_section_start = . );
+    *(.onchip .onchip.*)
+    PROVIDE( __onchip_section_end = . );
+  } >ram_exec AT>ram_exec :ram_exec
+  
   /* Remaining on-chip RAM (ram_exec) after code.
      Can be used from C via:
        extern uint8_t __onchip_data_start[], __onchip_data_end[];
