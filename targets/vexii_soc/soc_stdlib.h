@@ -18,6 +18,7 @@
 #include "driver/plic.h"
 #include "driver/clint.h"
 #include "driver/uart.h"
+#include "driver/dma.h"
 
 
 #define SOC_FREQUENCY_HZ 100000000 // 100 MHz
