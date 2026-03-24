@@ -12,6 +12,8 @@ HAS_F    := $(findstring f,$(BASE_ISA))
 
 # ABI Correction based on MARCH
 MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico32
+MICO_BNRV_DIR = $(MICO_DIR)/targets/vexii_bitnet
+
 ifeq ($(HAS_RV64),rv64)
 	MICO_SIMD_DIR = $(MICO_DIR)/targets/vexii/mico64
 	CFLAGS += -DMICO_ALIGN=8
@@ -45,7 +47,13 @@ ifeq ($(SPRAM), 1)
 	CFLAGS += -DSPRAM
 endif
 
+# For MiCo CFU VPU
 VLEN ?= 128
+
+# For MiCo BNRV
+USE_SIMD ?= 32
+BITNET_QUANT ?= 3
+
 CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
 
@@ -97,4 +105,10 @@ ifneq ($(filter simd, $(OPT)),)
 	endif
 	MICO_SOURCES += $(wildcard $(MICO_SIMD_DIR)/*.c)
 	RISCV_SOURCE += $(wildcard $(MICO_SIMD_DIR)/*.S)
+endif
+
+ifneq ($(filter bnrv, $(OPT)),)
+	MICO_SOURCES += $(MICO_BNRV_DIR)/bitnet_matmul.c
+	RISCV_SOURCE += $(MICO_BNRV_DIR)/bnrv.S $(MICO_BNRV_DIR)/dotp.S
+	CFLAGS += -DUSE_SIMD=$(USE_SIMD) -DBITNET_QUANT=$(BITNET_QUANT)
 endif
