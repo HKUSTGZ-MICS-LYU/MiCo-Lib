@@ -77,13 +77,15 @@ LDFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
 LDFLAGS += -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(VEXII_LD),-Map,$(BUILD)/$(notdir $(MAIN)).map,--print-memory-usage
 LDFLAGS += -L./ -lm -lc
 
+MARCH_BASE = $(shell echo $(MARCH) | sed 's/_.*$$//')
+
 ifneq ($(HAS_F)$(HAS_D),)
     LDFLAGS += -lgcc
 	CFLAGS += -DUSE_RVF
 else ifneq ($(HAS_RV64),)
 	LDFLAGS += -lgcc
-else ifneq ($(findstring m, $(MARCH)),)
-    LDFLAGS += -L$(MICO_DIR)/lib/$(MARCH)/ -lrvfp
+else ifneq ($(findstring m, $(MARCH_BASE)),)
+    LDFLAGS += -L$(MICO_DIR)/lib/$(MARCH_BASE)/ -lrvfp
 else
 	LDFLAGS += -lgcc
 endif
