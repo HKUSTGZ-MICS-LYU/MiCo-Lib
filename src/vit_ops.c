@@ -271,3 +271,54 @@ void MiCo_einsum_bhij_bhjf_bihf_f32(Tensor4D_F32 *y, const Tensor4D_F32 *score, 
         }
     }
 }
+
+void MiCo_ViT_attention_f32(
+    Tensor4D_F32 *y,
+    const Tensor4D_F32 *q,
+    const Tensor4D_F32 *k,
+    const Tensor4D_F32 *v,
+    const float scale
+){
+    const size_t B = q->shape[0];
+    const size_t H = q->shape[1];
+    const size_t I = q->shape[2];
+    const size_t F = q->shape[3];
+    const size_t J = k->shape[2];
+
+    MiCo_assert(k->shape[0] == B && k->shape[1] == H && k->shape[3] == F, "[Attention] k shape mismatch");
+    MiCo_assert(v->shape[0] == B && v->shape[1] == H && v->shape[2] == J && v->shape[3] == F, "[Attention] v shape mismatch");
+    MiCo_assert(y->shape[0] == B && y->shape[1] == I && y->shape[2] == H && y->shape[3] == F, "[Attention] y shape mismatch");
+    MiCo_assert(scale != 0.0f, "[Attention] scale must be non-zero");
+
+    float *scores = (float *)malloc(J * sizeof(float));
+    MiCo_assert(scores != NULL, "[Attention] failed to allocate scores buffer");
+
+    for (size_t b = 0; b < B; b++){
+        for (size_t h = 0; h < H; h++){
+            for (size_t i = 0; i < I; i++){
+                for (size_t j = 0; j < J; j++){
+                    float sum = 0.0f;
+                    for (size_t f = 0; f < F; f++){
+                        size_t q_idx = idx4(b, h, i, f, H, I, F);
+                        size_t k_idx = idx4(b, h, j, f, H, J, F);
+                        sum += q->data[q_idx] * k->data[k_idx];
+                    }
+                    scores[j] = sum / scale;
+                }
+
+                MiCo_softmax_vec(scores, scores, J);
+
+                for (size_t f = 0; f < F; f++){
+                    float out_sum = 0.0f;
+                    for (size_t j = 0; j < J; j++){
+                        size_t v_idx = idx4(b, h, j, f, H, J, F);
+                        out_sum += scores[j] * v->data[v_idx];
+                    }
+                    y->data[idx4(b, i, h, f, I, H, F)] = out_sum;
+                }
+            }
+        }
+    }
+
+    free(scores);
+}
