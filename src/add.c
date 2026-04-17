@@ -25,3 +25,14 @@ void MiCo_add2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 
         }
     }
 }
+
+void MiCo_add3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x1, const Tensor3D_F32 *x2){
+    MiCo_assert(x1->shape[0] == x2->shape[0], "[Add3D] Batch Size Mismatched!");
+    MiCo_assert(x1->shape[1] == x2->shape[1], "[Add3D] Seq Size Mismatched!");
+    MiCo_assert(x1->shape[2] == x2->shape[2], "[Add3D] Feature Size Mismatched!");
+
+    const size_t n = y->shape[0] * y->shape[1] * y->shape[2];
+    for (size_t i = 0; i < n; i++) {
+        y->data[i] = x1->data[i] + x2->data[i];
+    }
+}

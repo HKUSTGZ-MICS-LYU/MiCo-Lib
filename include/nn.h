@@ -71,6 +71,8 @@ typedef struct{
 // Linear/Dense Functions
 void MiCo_linear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
     const Tensor2D_F32 *weight, const Tensor1D_F32 *bias);
+void MiCo_linear3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
+    const Tensor2D_F32 *weight, const Tensor1D_F32 *bias);
 
 // Convolution Functions
 void MiCo_conv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
@@ -88,6 +90,7 @@ void MiCo_conv1d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
 
 // Adding Functions
 void MiCo_add2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 *x2);
+void MiCo_add3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x1, const Tensor3D_F32 *x2);
 void MiCo_add4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x1, const Tensor4D_F32 *x2);
 
 // Multiply Functions
@@ -122,6 +125,7 @@ void MiCo_flatten2d_f32(Tensor2D_F32 *y, const Tensor4D_F32 *x);
 
 // Concat Functions
 void MiCo_concat4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x1, const Tensor4D_F32 *x2);
+void MiCo_concat3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x1, const Tensor3D_F32 *x2);
 void MiCo_concat2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x1, const Tensor2D_F32 *x2);
 
 // Arg Functions
@@ -136,6 +140,12 @@ void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 // Simple RMSNorm Functions
 void MiCo_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
     const Tensor1D_F32 *weight, const float eps);
+void MiCo_layernorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
+    const Tensor1D_F32 *weight, const Tensor1D_F32 *bias,
+    const size_t normalized_dim, const float eps);
+void MiCo_layernorm3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
+    const Tensor1D_F32 *weight, const Tensor1D_F32 *bias,
+    const size_t normalized_dim, const float eps);
 
 // Channel Shuffle Functions (for ShuffleNet)
 void MiCo_channel_shuffle(Tensor4D_F32 *y, const Tensor4D_F32 *x, 
@@ -143,6 +153,13 @@ void MiCo_channel_shuffle(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 
 // Layout Conversion Functions
 void MiCo_NHWC2NCHW_flatten_f32(Tensor2D_F32 *y, const Tensor4D_F32 *x);
+void MiCo_view3d4d_f32(Tensor4D_F32 *y, const Tensor3D_F32 *x);
+void MiCo_flatten3d_f32(Tensor3D_F32 *y, const Tensor4D_F32 *x);
+void MiCo_transpose4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const size_t dim0, const size_t dim1);
+void MiCo_repeat3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
+    const size_t rep0, const size_t rep1, const size_t rep2);
+void MiCo_getitem3d_to2d_f32(Tensor2D_F32 *y, const Tensor3D_F32 *x, const size_t index1);
+void MiCo_im2word(Tensor3D_F32 *y, const Tensor4D_F32 *x, const size_t patch);
 
 void __NCHW_to_NHWC_inplace(float* data, const size_t N, const size_t C, 
     const size_t H, const size_t W);
@@ -231,5 +248,21 @@ void MiCo_multihead_attention_f32_kv8(
 
 // Softmax Function
 void softmax(float* x, int size);
+void MiCo_softmax2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, const int dim);
+void MiCo_softmax3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, const int dim);
+void MiCo_softmax4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const int dim);
+
+// Tensor Scalar Divide
+void MiCo_div2d_scalar_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, const float scalar);
+void MiCo_div3d_scalar_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, const float scalar);
+void MiCo_div4d_scalar_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const float scalar);
+
+// GELU
+void MiCo_gelu2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x);
+void MiCo_gelu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
+
+// ViT einsum kernels
+void MiCo_einsum_bhif_bhjf_bhij_f32(Tensor4D_F32 *y, const Tensor4D_F32 *q, const Tensor4D_F32 *k);
+void MiCo_einsum_bhij_bhjf_bihf_f32(Tensor4D_F32 *y, const Tensor4D_F32 *score, const Tensor4D_F32 *v);
 
 #endif // __NN_H

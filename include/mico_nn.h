@@ -69,6 +69,9 @@ typedef struct{
 void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
     const qtype wq, const qtype aq, const size_t align);
+void MiCo_bitlinear3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
+    const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
+    const qtype wq, const qtype aq, const size_t align);
 
 // Convolution Functions
 void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, 

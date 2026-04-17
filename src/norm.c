@@ -61,3 +61,63 @@ void MiCo_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
     }
     return;
 }
+
+void MiCo_layernorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
+    const Tensor1D_F32 *weight, const Tensor1D_F32 *bias,
+    const size_t normalized_dim, const float eps){
+    const size_t batch_size = x->shape[0];
+    MiCo_assert(x->shape[1] == normalized_dim, "[LayerNorm2D] normalized_dim mismatch");
+    for (size_t b = 0; b < batch_size; b++){
+        const size_t base = b * normalized_dim;
+        float mean = 0.0f;
+        for (size_t i = 0; i < normalized_dim; i++){
+            mean += x->data[base + i];
+        }
+        mean /= normalized_dim;
+
+        float var = 0.0f;
+        for (size_t i = 0; i < normalized_dim; i++){
+            float v = x->data[base + i] - mean;
+            var += v * v;
+        }
+        var /= normalized_dim;
+        const float inv_std = 1.0f / sqrtf(var + eps);
+
+        for (size_t i = 0; i < normalized_dim; i++){
+            float normed = (x->data[base + i] - mean) * inv_std;
+            y->data[base + i] = normed * weight->data[i] + bias->data[i];
+        }
+    }
+}
+
+void MiCo_layernorm3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
+    const Tensor1D_F32 *weight, const Tensor1D_F32 *bias,
+    const size_t normalized_dim, const float eps){
+    const size_t batch_size = x->shape[0];
+    const size_t seq_len = x->shape[1];
+    MiCo_assert(x->shape[2] == normalized_dim, "[LayerNorm3D] normalized_dim mismatch");
+
+    for (size_t b = 0; b < batch_size; b++){
+        for (size_t s = 0; s < seq_len; s++){
+            const size_t base = (b * seq_len + s) * normalized_dim;
+            float mean = 0.0f;
+            for (size_t i = 0; i < normalized_dim; i++){
+                mean += x->data[base + i];
+            }
+            mean /= normalized_dim;
+
+            float var = 0.0f;
+            for (size_t i = 0; i < normalized_dim; i++){
+                float v = x->data[base + i] - mean;
+                var += v * v;
+            }
+            var /= normalized_dim;
+            const float inv_std = 1.0f / sqrtf(var + eps);
+
+            for (size_t i = 0; i < normalized_dim; i++){
+                float normed = (x->data[base + i] - mean) * inv_std;
+                y->data[base + i] = normed * weight->data[i] + bias->data[i];
+            }
+        }
+    }
+}

@@ -93,10 +93,10 @@ void MiCo_multihead_attention_f32(
 void MiCo_multihead_attention_f32_kv8(
     Tensor2D_F32* output,           // [n_heads, head_size] - output buffer
     const Tensor2D_F32* query,     // [n_heads, head_size] - query vectors
-    int8_t* key_cache,        // key cache buffer
-    int8_t* value_cache,      // value cache buffer
-    float* key_scales,       // key scales buffer
-    float* value_scales,     // value scales buffer
+    int8_t* key_cache,        // key cache buffer (layer offset already applied)
+    int8_t* value_cache,      // value cache buffer (layer offset already applied)
+    float* key_scales,       // key scales buffer (layer offset already applied), layout: (seq_len, n_kv_heads)
+    float* value_scales,     // value scales buffer (layer offset already applied), layout: (seq_len, n_kv_heads)
     float* att_buffer,             // [n_heads, seq_len] - attention scores buffer
     const int pos,                 // current position
     const MiCo_MHA_Config* cfg     // MHA configuration
@@ -106,14 +106,16 @@ void MiCo_multihead_attention_f32_kv8(
     const int kv_dim = cfg->kv_dim;
     const int kv_mul = cfg->kv_mul;
     const int seq_len = cfg->seq_len;
+    const int n_kv_heads = kv_dim / head_size;
 
-    const float scale = 1.0f / sqrtf((float)head_size);
+    const float attn_scale = 1.0f / sqrtf((float)head_size);
 
     // Temporary bias (none)
     Tensor1D_F32 Tb = { .shape = {0}, .data = NULL };
 
     int h;
     for (h = 0; h < n_heads; h++) {
+        int kv_head = h / kv_mul;
         // get the query vector for this head
         float* q = query->data + h * head_size;
         // attention scores for this head
@@ -121,13 +123,15 @@ void MiCo_multihead_attention_f32_kv8(
         // iterate over all timesteps, including the current one
         for (int t = 0; t <= pos; t++) {
             // get the key vector for this head and at this timestep
-            int8_t* k = key_cache + t * kv_dim + (h / kv_mul) * head_size;
+            int8_t* k = key_cache + t * kv_dim + kv_head * head_size;
+            // get the key scale for this kv head at this timestep
+            float k_scale = key_scales[t * n_kv_heads + kv_head];
             // calculate the attention score as the dot product of q and k
             float score = 0.0f;
             for (int i = 0; i < head_size; i++) {
-                score += q[i] * k[i] * key_scales[t];
+                score += q[i] * k[i] * k_scale;
             }
-            score /= sqrtf(head_size);
+            score *= attn_scale;
             // save the score to the attention buffer
             att[t] = score;
         }
@@ -143,12 +147,14 @@ void MiCo_multihead_attention_f32_kv8(
 
         for (int t = 0; t <= pos; t++) {
             // get the value vector for this head and at this timestep
-            int8_t* v = value_cache + t * kv_dim + (h / kv_mul) * head_size;
+            int8_t* v = value_cache + t * kv_dim + kv_head * head_size;
+            // get the value scale for this kv head at this timestep
+            float v_scale = value_scales[t * n_kv_heads + kv_head];
             // get the attention weight for this timestep
             float a = att[t];
             // accumulate the weighted value into xb
             for (int i = 0; i < head_size; i++) {
-                xb[i] += a * v[i] * value_scales[t];
+                xb[i] += a * v[i] * v_scale;
             }
         }
     }

@@ -34,3 +34,21 @@ __attribute__((weak)) void MiCo_linear_f32(
     MiCo_MatMul_f32(y->data, x->data, weight->data, 
         batch_size, in_features, out_features);
 }
+
+void MiCo_linear3d_f32(
+    Tensor3D_F32 *y,
+    const Tensor3D_F32 *x,
+    const Tensor2D_F32 *weight,
+    const Tensor1D_F32 *bias) {
+    Tensor2D_F32 x2d;
+    Tensor2D_F32 y2d;
+    x2d.shape[0] = x->shape[0] * x->shape[1];
+    x2d.shape[1] = x->shape[2];
+    x2d.data = x->data;
+
+    y2d.shape[0] = y->shape[0] * y->shape[1];
+    y2d.shape[1] = y->shape[2];
+    y2d.data = y->data;
+
+    MiCo_linear_f32(&y2d, &x2d, weight, bias);
+}

@@ -89,3 +89,19 @@ __attribute__((weak)) void MiCo_bitlinear_f32(Tensor2D_F32 *y, const Tensor2D_F3
     // Free Quantized Memory
     free(qO);
 }
+
+void MiCo_bitlinear3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
+    const Tensor2D_Q8 *weight, const Tensor1D_F32 *bias,
+    const qtype wq, const qtype aq, const size_t align){
+    Tensor2D_F32 x2d;
+    Tensor2D_F32 y2d;
+    x2d.shape[0] = x->shape[0] * x->shape[1];
+    x2d.shape[1] = x->shape[2];
+    x2d.data = x->data;
+
+    y2d.shape[0] = y->shape[0] * y->shape[1];
+    y2d.shape[1] = y->shape[2];
+    y2d.data = y->data;
+
+    MiCo_bitlinear_f32(&y2d, &x2d, weight, bias, wq, aq, align);
+}
