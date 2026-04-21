@@ -1,6 +1,6 @@
 #include "bnrv.h"
 
-// For BitNet SIMD Below 8 elements, the arguments are the data themselves
+// For BitNet SIMD Below 8 elements (USE_SIMD=4 with bitnet-version 4), args are data themselves
 .global __bitnetadd4
 __bitnetadd4:
     BNSUM(a0, a0, a1) // BNADD4 a0 = a(a0) * w(a1)
