@@ -61,6 +61,9 @@ typedef uint32_t int1x32_t;
 static inline int32_t bitnet_row_acc_q8xq(const int8_t *input, const int8_t *weight, int n) {
     int32_t acc = 0;
 
+    // BitNetBufferPlugin maps BNSUM as:
+    // RESULT = bitnetadd4(rs1, buffer_low) + bitnetadd4(rs2, buffer_high)
+    // so software keeps one consistent operand order across quant modes.
 #if BITNET_QUANT == 2
     int j = 0;
 #if USE_SIMD == 64
@@ -68,39 +71,39 @@ static inline int32_t bitnet_row_acc_q8xq(const int8_t *input, const int8_t *wei
     for (; j < aligned; j += 64) {
         const uint32_t *w_ptr = (const uint32_t *)(weight + (j >> 3));
         bn_store(w_ptr[1], w_ptr[0]);
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 4), *(const int8x4_t *)(input + j + 0));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 12), *(const int8x4_t *)(input + j + 8));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 20), *(const int8x4_t *)(input + j + 16));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 28), *(const int8x4_t *)(input + j + 24));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 36), *(const int8x4_t *)(input + j + 32));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 44), *(const int8x4_t *)(input + j + 40));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 52), *(const int8x4_t *)(input + j + 48));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 60), *(const int8x4_t *)(input + j + 56));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 0), *(const int8x4_t *)(input + j + 4));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 8), *(const int8x4_t *)(input + j + 12));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 16), *(const int8x4_t *)(input + j + 20));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 24), *(const int8x4_t *)(input + j + 28));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 32), *(const int8x4_t *)(input + j + 36));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 40), *(const int8x4_t *)(input + j + 44));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 48), *(const int8x4_t *)(input + j + 52));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 56), *(const int8x4_t *)(input + j + 60));
     }
 #elif USE_SIMD == 32
     const int aligned = n & ~31;
     for (; j < aligned; j += 32) {
         const uint32_t w_word = *(const uint32_t *)(weight + (j >> 3));
         bn_store(0, w_word);
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 4), *(const int8x4_t *)(input + j + 0));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 12), *(const int8x4_t *)(input + j + 8));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 20), *(const int8x4_t *)(input + j + 16));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 28), *(const int8x4_t *)(input + j + 24));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 0), *(const int8x4_t *)(input + j + 4));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 8), *(const int8x4_t *)(input + j + 12));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 16), *(const int8x4_t *)(input + j + 20));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 24), *(const int8x4_t *)(input + j + 28));
     }
 #elif USE_SIMD == 16
     const int aligned = n & ~15;
     for (; j < aligned; j += 16) {
         const uint16_t w_word = *(const uint16_t *)(weight + (j >> 3));
         bn_store(0, w_word);
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 4), *(const int8x4_t *)(input + j + 0));
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 12), *(const int8x4_t *)(input + j + 8));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 0), *(const int8x4_t *)(input + j + 4));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 8), *(const int8x4_t *)(input + j + 12));
     }
 #elif USE_SIMD == 8
     const int aligned = n & ~7;
     for (; j < aligned; j += 8) {
         const uint8_t w_word = *(const uint8_t *)(weight + (j >> 3));
         bn_store(0, w_word);
-        acc += bn_sum8(*(const int8x4_t *)(input + j + 4), *(const int8x4_t *)(input + j + 0));
+        acc += bn_sum8(*(const int8x4_t *)(input + j + 0), *(const int8x4_t *)(input + j + 4));
     }
 #elif USE_SIMD == 4
     const int aligned = n & ~3;
@@ -179,6 +182,8 @@ static inline int32_t bitnet_row_acc_q8xq(const int8_t *input, const int8_t *wei
 static inline int32_t bitnet_row_acc_qx8(const int8_t *packed_input, const int8_t *weight, int n) {
     int32_t acc = 0;
 
+    // Keep the same BNSUM operand order as bitnet_row_acc_q8xq():
+    // rs1 pairs with buffer_low, rs2 pairs with buffer_high.
 #if BITNET_QUANT == 2
     int j = 0;
 #if USE_SIMD == 64
@@ -186,39 +191,39 @@ static inline int32_t bitnet_row_acc_qx8(const int8_t *packed_input, const int8_
     for (; j < aligned; j += 64) {
         const uint32_t *a_ptr = (const uint32_t *)(packed_input + (j >> 3));
         bn_store(a_ptr[1], a_ptr[0]);
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 4), *(const int8x4_t *)(weight + j + 0));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 12), *(const int8x4_t *)(weight + j + 8));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 20), *(const int8x4_t *)(weight + j + 16));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 28), *(const int8x4_t *)(weight + j + 24));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 36), *(const int8x4_t *)(weight + j + 32));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 44), *(const int8x4_t *)(weight + j + 40));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 52), *(const int8x4_t *)(weight + j + 48));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 60), *(const int8x4_t *)(weight + j + 56));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 0), *(const int8x4_t *)(weight + j + 4));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 8), *(const int8x4_t *)(weight + j + 12));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 16), *(const int8x4_t *)(weight + j + 20));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 24), *(const int8x4_t *)(weight + j + 28));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 32), *(const int8x4_t *)(weight + j + 36));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 40), *(const int8x4_t *)(weight + j + 44));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 48), *(const int8x4_t *)(weight + j + 52));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 56), *(const int8x4_t *)(weight + j + 60));
     }
 #elif USE_SIMD == 32
     const int aligned = n & ~31;
     for (; j < aligned; j += 32) {
         const uint32_t a_word = *(const uint32_t *)(packed_input + (j >> 3));
         bn_store(0, a_word);
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 4), *(const int8x4_t *)(weight + j + 0));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 12), *(const int8x4_t *)(weight + j + 8));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 20), *(const int8x4_t *)(weight + j + 16));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 28), *(const int8x4_t *)(weight + j + 24));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 0), *(const int8x4_t *)(weight + j + 4));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 8), *(const int8x4_t *)(weight + j + 12));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 16), *(const int8x4_t *)(weight + j + 20));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 24), *(const int8x4_t *)(weight + j + 28));
     }
 #elif USE_SIMD == 16
     const int aligned = n & ~15;
     for (; j < aligned; j += 16) {
         const uint16_t a_word = *(const uint16_t *)(packed_input + (j >> 3));
         bn_store(0, a_word);
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 4), *(const int8x4_t *)(weight + j + 0));
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 12), *(const int8x4_t *)(weight + j + 8));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 0), *(const int8x4_t *)(weight + j + 4));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 8), *(const int8x4_t *)(weight + j + 12));
     }
 #elif USE_SIMD == 8
     const int aligned = n & ~7;
     for (; j < aligned; j += 8) {
         const uint8_t a_word = *(const uint8_t *)(packed_input + (j >> 3));
         bn_store(0, a_word);
-        acc += bn_sum8(*(const int8x4_t *)(weight + j + 4), *(const int8x4_t *)(weight + j + 0));
+        acc += bn_sum8(*(const int8x4_t *)(weight + j + 0), *(const int8x4_t *)(weight + j + 4));
     }
 #elif USE_SIMD == 4
     const int aligned = n & ~3;
