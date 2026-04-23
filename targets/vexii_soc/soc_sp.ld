@@ -4,6 +4,8 @@ SPARSE_RAM_ORIGIN = 0x82000000;
 SPARSE_RAM_LENGTH = DEFINED(SPARSE_RAM_SIZE) ? SPARSE_RAM_SIZE : 64M;
 __heap_size  = DEFINED(HEAP_SIZE)  ? HEAP_SIZE  : 1K;
 __stack_size = DEFINED(STACK_SIZE) ? STACK_SIZE : 1K;
+SCRATCHPAD_ALIGN = DEFINED(SCRATCHPAD_ALIGN) ? SCRATCHPAD_ALIGN : 64;
+SCRATCHPAD_GUARD_SIZE = DEFINED(SCRATCHPAD_GUARD_SIZE) ? SCRATCHPAD_GUARD_SIZE : 0;
 
 
 OUTPUT_ARCH( "riscv" )
@@ -49,7 +51,7 @@ SECTIONS
   PROVIDE (_etext = .);
   PROVIDE (etext = .);
 
-  /* On-chip RAM section for SPRAM data */
+  /* Static data explicitly pinned into fast on-chip RAM. */
   .onchip :
   {
     PROVIDE( __onchip_section_start = . );
@@ -57,13 +59,17 @@ SECTIONS
     PROVIDE( __onchip_section_end = . );
   } >ram_exec AT>ram_exec :ram_exec
   
-  /* Remaining on-chip RAM (ram_exec) after code.
-     Can be used from C via:
-       extern uint8_t __onchip_data_start[], __onchip_data_end[];
-  */
-  PROVIDE( __onchip_data_start = ALIGN(8) );
-  PROVIDE( __onchip_data_end   = ORIGIN(ram_exec) + LENGTH(ram_exec) );
-  PROVIDE( __onchip_data_size  = __onchip_data_end - __onchip_data_start );
+  /* The remaining on-chip RAM becomes a scratch arena.
+     The allocator uses the low end for persistent buffers and
+     the high end for temporary ML workspaces. */
+  . = ALIGN(SCRATCHPAD_ALIGN);
+  PROVIDE( __scratchpad_start = . );
+  PROVIDE( __scratchpad_end   = ORIGIN(ram_exec) + LENGTH(ram_exec) - SCRATCHPAD_GUARD_SIZE );
+  ASSERT((__scratchpad_end >= __scratchpad_start), "scratchpad overflow: ram_exec is fully consumed before scratchpad setup")
+  PROVIDE( __scratchpad_size  = __scratchpad_end - __scratchpad_start );
+  PROVIDE( __onchip_data_start = __scratchpad_start );
+  PROVIDE( __onchip_data_end   = __scratchpad_end );
+  PROVIDE( __onchip_data_size  = __scratchpad_size );
   PROVIDE( _onchip_data_start = __onchip_data_start );
   PROVIDE( _onchip_data_end   = __onchip_data_end );
 

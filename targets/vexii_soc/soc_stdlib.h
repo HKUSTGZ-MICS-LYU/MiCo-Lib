@@ -40,11 +40,5 @@ int printf(const char *format, ...);
 int sprintf(char *str, const char *format, ... );
 int sscanf(const char *str, const char *format, ...);
 
-#ifdef SPRAM
-extern uint8_t __onchip_data_start[], __onchip_data_end[];
-void* scratch_malloc(size_t size, uint32_t alignment);
-void scratch_free(void* ptr);
-void scratch_reset(void);
-#endif
 
 #endif // _SOC_STDLIB_H_
