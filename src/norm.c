@@ -43,6 +43,83 @@ void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     return;
 }
 
+void MiCo_simple_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x){
+    size_t b = x->shape[0];
+    size_t n = x->shape[1];
+
+    // Simple RMS Norm
+    for (size_t i = 0; i < b; i++) {
+        size_t baddr = i * n;
+        float scale = 0.0;
+        for (size_t j = 0; j < n; j++) {
+            scale += x->data[baddr + j] * x->data[baddr + j];
+        }
+        scale /= n;
+        scale = 1.0f / sqrtf(scale);
+        scale /= n;
+        for (size_t j = 0; j < n; j++) {
+            y->data[baddr + j] = x->data[baddr + j] * scale;
+        }
+    }
+}
+
+void MiCo_simple_rmsnorm3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x){
+    size_t b = x->shape[0];
+    size_t c = x->shape[1];
+    size_t n = x->shape[2];
+
+    for (size_t i = 0; i < b; i++) {
+        for (size_t j = 0; j < c; j++) {
+            size_t addr = (i * c + j) * n;
+            float scale = 0.0f;
+            for (size_t k = 0; k < n; k++) {
+                scale += x->data[addr + k] * x->data[addr + k];
+            }
+            scale /= n;
+            scale = 1.0f / sqrtf(scale);
+            scale /= n;
+            for (size_t k = 0; k < n; k++) {
+                y->data[addr + k] = x->data[addr + k] * scale;
+            }
+        }
+    }
+}
+
+void MiCo_simple_rmsnorm4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x){
+    size_t batch_size = x->shape[0];
+    #ifdef USE_ALT_LAYOUT
+    size_t in_h = x->shape[1];
+    size_t in_w = x->shape[2];
+    size_t channel_size = x->shape[3];
+    #else
+    size_t channel_size = x->shape[1];
+    size_t in_h = x->shape[2];
+    size_t in_w = x->shape[3];
+    #endif
+    size_t n = in_h * in_w;
+
+    for (size_t i = 0; i < batch_size; i++) {
+        for (size_t j = 0; j < channel_size; j++) {
+            float scale = 0.0f;
+            for (size_t h = 0; h < in_h; h++) {
+                for (size_t w = 0; w < in_w; w++) {
+                    size_t idx = OFFSET_4D(i, j, h, w, batch_size, channel_size, in_h, in_w);
+                    scale += x->data[idx] * x->data[idx];
+                }
+            }
+            scale /= n;
+            scale = 1.0f / sqrtf(scale);
+            scale /= n;
+            for (size_t h = 0; h < in_h; h++) {
+                for (size_t w = 0; w < in_w; w++) {
+                    size_t idx = OFFSET_4D(i, j, h, w, batch_size, channel_size, in_h, in_w);
+                    y->data[idx] = x->data[idx] * scale;
+                }
+            }
+        }
+    }
+}
+
 void MiCo_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
     const Tensor1D_F32 *weight, const float eps){
     size_t batch_size = x->shape[0];

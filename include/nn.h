@@ -2,6 +2,7 @@
 #define __NN_H
 
 #include <stdint.h>
+#include <math.h>
 #include <malloc.h>
 #ifdef RISCV_VEXII
 #include "sim_stdlib.h"
@@ -138,6 +139,9 @@ void MiCo_batchnorm2d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x,
     const float eps);
 
 // Simple RMSNorm Functions
+void MiCo_simple_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x);
+void MiCo_simple_rmsnorm3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
+void MiCo_simple_rmsnorm4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x);
 void MiCo_rmsnorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, 
     const Tensor1D_F32 *weight, const float eps);
 void MiCo_layernorm2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x,
