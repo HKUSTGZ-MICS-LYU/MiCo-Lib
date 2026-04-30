@@ -2,6 +2,8 @@
 #include <math.h>
 #include <string.h>
 
+extern long ATTN_TIMER;
+
 static inline size_t idx2(size_t i0, size_t i1, size_t d1){
     return i0 * d1 + i1;
 }
@@ -293,6 +295,8 @@ void MiCo_ViT_attention_f32(
     float *scores = (float *)malloc(J * sizeof(float));
     MiCo_assert(scores != NULL, "[Attention] failed to allocate scores buffer");
 
+    long start_time = MiCo_time();
+
     for (size_t b = 0; b < B; b++){
         for (size_t h = 0; h < H; h++){
             for (size_t i = 0; i < I; i++){
@@ -319,6 +323,7 @@ void MiCo_ViT_attention_f32(
             }
         }
     }
+    ATTN_TIMER += MiCo_time() - start_time;
 
     free(scores);
 }

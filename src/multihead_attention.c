@@ -3,6 +3,8 @@
 #include <math.h>
 
 extern long SOFTMAX_TIMER;
+extern long ATTN_TIMER;
+
 void softmax(float* x, int size) {
     long start = MiCo_time();
     // find max value (for numerical stability)
@@ -45,7 +47,7 @@ void MiCo_multihead_attention_f32(
 
     // Temporary bias (none)
     Tensor1D_F32 Tb = { .shape = {0}, .data = NULL };
-
+    long start_time = MiCo_time();
     int h;
     for (h = 0; h < n_heads; h++) {
         // get the query vector for this head
@@ -86,7 +88,7 @@ void MiCo_multihead_attention_f32(
             }
         }
     }
-
+    ATTN_TIMER += MiCo_time() - start_time;
     return;
 }
 
@@ -112,6 +114,8 @@ void MiCo_multihead_attention_f32_kv8(
 
     // Temporary bias (none)
     Tensor1D_F32 Tb = { .shape = {0}, .data = NULL };
+
+    long start_time = MiCo_time();
 
     int h;
     for (h = 0; h < n_heads; h++) {
@@ -158,5 +162,6 @@ void MiCo_multihead_attention_f32_kv8(
             }
         }
     }
+    ATTN_TIMER += MiCo_time() - start_time;
     return;
 }
