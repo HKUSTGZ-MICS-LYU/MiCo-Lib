@@ -1,4 +1,6 @@
 #include "nn.h"
+#include "profile.h"
+
 #include <math.h>
 #include <string.h>
 
