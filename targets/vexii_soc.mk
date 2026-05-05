@@ -114,3 +114,8 @@ ifneq ($(filter bnrv, $(OPT)),)
 	RISCV_SOURCE += $(MICO_BNRV_DIR)/bnrv.S $(MICO_BNRV_DIR)/dotp.S
 	CFLAGS += -DUSE_SIMD=$(USE_SIMD) -DBITNET_QUANT=$(BITNET_QUANT)
 endif
+
+ifneq ($(filter bncfu, $(OPT)),)
+	MICO_SOURCES += $(wildcard $(VEXII_PATH)/bncfu/*.c)
+	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN) -DBITNET_QUANT=$(BITNET_QUANT)
+endif
