@@ -66,6 +66,34 @@ void MiCo_repeat3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
     }
 }
 
+void MiCo_transpose3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, const size_t dim0, const size_t dim1){
+    MiCo_assert(dim0 < 3 && dim1 < 3, "[Transpose3D] invalid dims");
+
+    size_t xshape[3] = {x->shape[0], x->shape[1], x->shape[2]};
+    size_t yshape[3] = {y->shape[0], y->shape[1], y->shape[2]};
+
+    size_t expected[3] = {xshape[0], xshape[1], xshape[2]};
+    expected[dim0] = xshape[dim1];
+    expected[dim1] = xshape[dim0];
+    MiCo_assert(yshape[0] == expected[0] && yshape[1] == expected[1] &&
+                yshape[2] == expected[2], "[Transpose3D] output shape mismatch");
+
+    for (size_t i0 = 0; i0 < yshape[0]; i0++){
+        for (size_t i1 = 0; i1 < yshape[1]; i1++){
+            for (size_t i2 = 0; i2 < yshape[2]; i2++){
+                size_t out_coord[3] = {i0, i1, i2};
+                size_t in_coord[3] = {i0, i1, i2};
+                in_coord[dim0] = out_coord[dim1];
+                in_coord[dim1] = out_coord[dim0];
+                size_t out_idx = idx3(i0, i1, i2, yshape[1], yshape[2]);
+                size_t in_idx = idx3(in_coord[0], in_coord[1], in_coord[2],
+                                     xshape[1], xshape[2]);
+                y->data[out_idx] = x->data[in_idx];
+            }
+        }
+    }
+}
+
 void MiCo_transpose4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const size_t dim0, const size_t dim1){
     MiCo_assert(dim0 < 4 && dim1 < 4, "[Transpose4D] invalid dims");
 

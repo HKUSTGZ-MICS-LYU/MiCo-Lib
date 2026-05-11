@@ -159,10 +159,20 @@ void MiCo_channel_shuffle(Tensor4D_F32 *y, const Tensor4D_F32 *x,
 void MiCo_NHWC2NCHW_flatten_f32(Tensor2D_F32 *y, const Tensor4D_F32 *x);
 void MiCo_view3d4d_f32(Tensor4D_F32 *y, const Tensor3D_F32 *x);
 void MiCo_flatten3d_f32(Tensor3D_F32 *y, const Tensor4D_F32 *x);
+void MiCo_transpose3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, const size_t dim0, const size_t dim1);
 void MiCo_transpose4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const size_t dim0, const size_t dim1);
 void MiCo_repeat3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
     const size_t rep0, const size_t rep1, const size_t rep2);
 void MiCo_getitem3d_to2d_f32(Tensor2D_F32 *y, const Tensor3D_F32 *x, const size_t index1);
+
+// Mean reduction (keepdim=False)
+void MiCo_mean1d_f32(Tensor1D_F32 *y, const Tensor2D_F32 *x, const size_t dim);
+void MiCo_mean2d_f32(Tensor2D_F32 *y, const Tensor3D_F32 *x, const size_t dim);
+void MiCo_mean3d_f32(Tensor3D_F32 *y, const Tensor4D_F32 *x, const size_t dim);
+
+// Mean reduction (keepdim=True)
+void MiCo_meankp2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, const size_t dim);
+void MiCo_meankp3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, const size_t dim);
 void MiCo_im2word(Tensor3D_F32 *y, const Tensor4D_F32 *x, const size_t patch);
 
 void __NCHW_to_NHWC_inplace(float* data, const size_t N, const size_t C, 
