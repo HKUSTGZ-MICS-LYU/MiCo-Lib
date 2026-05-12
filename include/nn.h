@@ -275,9 +275,7 @@ void MiCo_div4d_scalar_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const float s
 void MiCo_gelu2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x);
 void MiCo_gelu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
 
-// ViT einsum kernels
-void MiCo_einsum_bhif_bhjf_bhij_f32(Tensor4D_F32 *y, const Tensor4D_F32 *q, const Tensor4D_F32 *k);
-void MiCo_einsum_bhij_bhjf_bihf_f32(Tensor4D_F32 *y, const Tensor4D_F32 *score, const Tensor4D_F32 *v);
+// ViT Attention kernels
 void MiCo_ViT_attention_f32(
     Tensor4D_F32 *y,
     const Tensor4D_F32 *q,
