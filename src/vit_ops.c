@@ -250,6 +250,75 @@ void MiCo_gelu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x){
     }
 }
 
+void MiCo_linear_attention_f32(
+    Tensor4D_F32 *y,
+    const Tensor4D_F32 *q,
+    const Tensor4D_F32 *k,
+    const Tensor4D_F32 *v,
+    const float eps
+){
+    const size_t B = q->shape[0];
+    const size_t H = q->shape[1];
+    const size_t N = q->shape[2];
+    const size_t D = q->shape[3];
+    const size_t M = v->shape[3];
+
+    MiCo_assert(k->shape[0] == B && k->shape[1] == H && k->shape[2] == N && k->shape[3] == D,
+                "[LinearAttention] k shape mismatch");
+    MiCo_assert(v->shape[0] == B && v->shape[1] == H && v->shape[2] == N,
+                "[LinearAttention] v shape mismatch");
+    MiCo_assert(y->shape[0] == B && y->shape[1] == N && y->shape[2] == H && y->shape[3] == M,
+                "[LinearAttention] y shape mismatch");
+
+    long start_time = MiCo_time();
+    float *context = (float *)malloc(H * D * M * sizeof(float));
+    float *k_sum = (float *)malloc(H * D * sizeof(float));
+    MiCo_assert(context != NULL && k_sum != NULL, "[LinearAttention] failed to allocate buffers");
+
+    for (size_t b = 0; b < B; b++){
+        memset(context, 0, H * D * M * sizeof(float));
+        memset(k_sum, 0, H * D * sizeof(float));
+
+        for (size_t h = 0; h < H; h++){
+            for (size_t n = 0; n < N; n++){
+                for (size_t d = 0; d < D; d++){
+                    float kv = k->data[idx4(b, h, n, d, H, N, D)];
+                    float kp = kv >= 0.0f ? kv + 1.0f : expf(kv);
+                    k_sum[idx2(h, d, D)] += kp;
+                    for (size_t m = 0; m < M; m++){
+                        context[idx3(h, d, m, D, M)] +=
+                            kp * v->data[idx4(b, h, n, m, H, N, M)];
+                    }
+                }
+            }
+
+            for (size_t n = 0; n < N; n++){
+                float den = 0.0f;
+                for (size_t d = 0; d < D; d++){
+                    float qv = q->data[idx4(b, h, n, d, H, N, D)];
+                    float qp = qv >= 0.0f ? qv + 1.0f : expf(qv);
+                    den += qp * k_sum[idx2(h, d, D)];
+                }
+                den += eps;
+
+                for (size_t m = 0; m < M; m++){
+                    float num = 0.0f;
+                    for (size_t d = 0; d < D; d++){
+                        float qv = q->data[idx4(b, h, n, d, H, N, D)];
+                        float qp = qv >= 0.0f ? qv + 1.0f : expf(qv);
+                        num += qp * context[idx3(h, d, m, D, M)];
+                    }
+                    y->data[idx4(b, n, h, m, N, H, M)] = num / den;
+                }
+            }
+        }
+    }
+
+    ATTN_TIMER += MiCo_time() - start_time;
+    free(context);
+    free(k_sum);
+}
+
 void MiCo_ViT_attention_f32(
     Tensor4D_F32 *y,
     const Tensor4D_F32 *q,

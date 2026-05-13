@@ -276,6 +276,14 @@ void MiCo_gelu2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x);
 void MiCo_gelu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
 
 // ViT Attention kernels
+void MiCo_linear_attention_f32(
+    Tensor4D_F32 *y,
+    const Tensor4D_F32 *q,
+    const Tensor4D_F32 *k,
+    const Tensor4D_F32 *v,
+    const float eps
+);
+
 void MiCo_ViT_attention_f32(
     Tensor4D_F32 *y,
     const Tensor4D_F32 *q,
