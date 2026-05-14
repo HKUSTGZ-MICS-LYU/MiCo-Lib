@@ -7,6 +7,8 @@
 extern long ATTN_TIMER;
 extern long SOFTMAX_TIMER;
 
+long EXPF_TIMER;
+
 static inline size_t idx2(size_t i0, size_t i1, size_t d1){
     return i0 * d1 + i1;
 }
@@ -36,15 +38,19 @@ static void MiCo_init_exp_lut(void){
 }
 
 static float MiCo_expf(float x){
+    long start = MiCo_time();
+    float res;
     #ifdef EXP_ACCEL
     if (x >= 0.0f) return expf(x);
     if (x <= -EXP_LUT_MAX) return 0.0f;
     int idx = (int)(-x * (1.0f / EXP_LUT_STEP));
     if (idx >= EXP_LUT_SIZE) idx = EXP_LUT_SIZE - 1;
-    return exp_lut[idx];
+    res = exp_lut[idx];
     #else
-    return expf(x);
+    res = expf(x);
     #endif
+    EXPF_TIMER += MiCo_time() - start;
+    return res;
 }
 
 static void MiCo_softmax_vec(float *dst, const float *src, size_t n){
