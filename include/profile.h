@@ -3,6 +3,8 @@
 
 long int MiCo_time();
 void MiCo_print_profilers();
+void MiCo_reset_profilers();
+
 extern long QUANT_TIMER;
 extern long QMATMUL_TIMER;
 extern long IM2COL_TIMER;

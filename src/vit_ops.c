@@ -5,6 +5,7 @@
 #include <string.h>
 
 extern long ATTN_TIMER;
+extern long SOFTMAX_TIMER;
 
 static inline size_t idx2(size_t i0, size_t i1, size_t d1){
     return i0 * d1 + i1;
@@ -18,7 +19,36 @@ static inline size_t idx4(size_t i0, size_t i1, size_t i2, size_t i3, size_t d1,
     return ((i0 * d1 + i1) * d2 + i2) * d3 + i3;
 }
 
+// Exp LUT: covers [-EXP_LUT_MAX, 0] with EXP_LUT_SIZE entries
+#define EXP_LUT_SIZE 256
+#define EXP_LUT_MAX  16.0f
+#define EXP_LUT_STEP (EXP_LUT_MAX / (float)EXP_LUT_SIZE)
+
+static float exp_lut[EXP_LUT_SIZE];
+static int exp_lut_ready = 0;
+
+static void MiCo_init_exp_lut(void){
+    if (exp_lut_ready) return;
+    for (int i = 0; i < EXP_LUT_SIZE; i++){
+        exp_lut[i] = expf(-(float)i * EXP_LUT_STEP);
+    }
+    exp_lut_ready = 1;
+}
+
+static float MiCo_expf(float x){
+    #ifdef EXP_ACCEL
+    if (x >= 0.0f) return expf(x);
+    if (x <= -EXP_LUT_MAX) return 0.0f;
+    int idx = (int)(-x * (1.0f / EXP_LUT_STEP));
+    if (idx >= EXP_LUT_SIZE) idx = EXP_LUT_SIZE - 1;
+    return exp_lut[idx];
+    #else
+    return expf(x);
+    #endif
+}
+
 static void MiCo_softmax_vec(float *dst, const float *src, size_t n){
+    long start = MiCo_time();
     float max_val = src[0];
     for (size_t i = 1; i < n; i++){
         if (src[i] > max_val){
@@ -28,12 +58,13 @@ static void MiCo_softmax_vec(float *dst, const float *src, size_t n){
 
     float sum = 0.0f;
     for (size_t i = 0; i < n; i++){
-        dst[i] = expf(src[i] - max_val);
+        dst[i] = MiCo_expf(src[i] - max_val);
         sum += dst[i];
     }
     for (size_t i = 0; i < n; i++){
         dst[i] /= sum;
     }
+    SOFTMAX_TIMER += MiCo_time() - start;
 }
 
 void MiCo_view3d4d_f32(Tensor4D_F32 *y, const Tensor3D_F32 *x){
@@ -270,20 +301,28 @@ void MiCo_linear_attention_f32(
     MiCo_assert(y->shape[0] == B && y->shape[1] == N && y->shape[2] == H && y->shape[3] == M,
                 "[LinearAttention] y shape mismatch");
 
+#if defined(EXP_ACCEL)
+    MiCo_init_exp_lut();
+#endif
+
     long start_time = MiCo_time();
     float *context = (float *)malloc(H * D * M * sizeof(float));
-    float *k_sum = (float *)malloc(H * D * sizeof(float));
-    MiCo_assert(context != NULL && k_sum != NULL, "[LinearAttention] failed to allocate buffers");
+    float *k_sum   = (float *)malloc(H * D * sizeof(float));
+    float *phi_q   = (float *)malloc(N * D * sizeof(float));
+    float *num     = (float *)malloc(M * sizeof(float));
+    MiCo_assert(context != NULL && k_sum != NULL && phi_q != NULL && num != NULL,
+                "[LinearAttention] failed to allocate buffers");
 
     for (size_t b = 0; b < B; b++){
         memset(context, 0, H * D * M * sizeof(float));
-        memset(k_sum, 0, H * D * sizeof(float));
+        memset(k_sum,   0, H * D * sizeof(float));
 
         for (size_t h = 0; h < H; h++){
+            // Phase 1: KV context accumulation (unchanged algorithm)
             for (size_t n = 0; n < N; n++){
                 for (size_t d = 0; d < D; d++){
                     float kv = k->data[idx4(b, h, n, d, H, N, D)];
-                    float kp = kv >= 0.0f ? kv + 1.0f : expf(kv);
+                    float kp = kv >= 0.0f ? kv + 1.0f : MiCo_expf(kv);
                     k_sum[idx2(h, d, D)] += kp;
                     for (size_t m = 0; m < M; m++){
                         context[idx3(h, d, m, D, M)] +=
@@ -292,23 +331,34 @@ void MiCo_linear_attention_f32(
                 }
             }
 
+            // Phase 2a: Pre-compute φ(q) once — eliminates redundant computation
             for (size_t n = 0; n < N; n++){
-                float den = 0.0f;
+                float *phi_q_n = phi_q + n * D;
                 for (size_t d = 0; d < D; d++){
                     float qv = q->data[idx4(b, h, n, d, H, N, D)];
-                    float qp = qv >= 0.0f ? qv + 1.0f : expf(qv);
+                    phi_q_n[d] = qv >= 0.0f ? qv + 1.0f : MiCo_expf(qv);
+                }
+            }
+
+            // Phase 2b: Query reduction with fused den + num[m] D-loop
+            for (size_t n = 0; n < N; n++){
+                float *phi_q_n = phi_q + n * D;
+                float den = 0.0f;
+                memset(num, 0, M * sizeof(float));
+
+                // Fused single pass over D: accumulate both den and all num[m]
+                for (size_t d = 0; d < D; d++){
+                    float qp = phi_q_n[d];
                     den += qp * k_sum[idx2(h, d, D)];
+                    float *ctx_d = context + idx3(h, d, 0, D, M);
+                    for (size_t m = 0; m < M; m++){
+                        num[m] += qp * ctx_d[m];
+                    }
                 }
                 den += eps;
 
                 for (size_t m = 0; m < M; m++){
-                    float num = 0.0f;
-                    for (size_t d = 0; d < D; d++){
-                        float qv = q->data[idx4(b, h, n, d, H, N, D)];
-                        float qp = qv >= 0.0f ? qv + 1.0f : expf(qv);
-                        num += qp * context[idx3(h, d, m, D, M)];
-                    }
-                    y->data[idx4(b, n, h, m, N, H, M)] = num / den;
+                    y->data[idx4(b, n, h, m, N, H, M)] = num[m] / den;
                 }
             }
         }
@@ -317,6 +367,8 @@ void MiCo_linear_attention_f32(
     ATTN_TIMER += MiCo_time() - start_time;
     free(context);
     free(k_sum);
+    free(phi_q);
+    free(num);
 }
 
 void MiCo_ViT_attention_f32(
