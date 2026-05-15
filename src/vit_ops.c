@@ -1,5 +1,7 @@
 #include "nn.h"
 #include "profile.h"
+#include "mico_qnn.h"
+#include "mico_quant.h"
 
 #include <math.h>
 #include <string.h>
@@ -398,23 +400,89 @@ void MiCo_ViT_attention_f32(
     float *scores = (float *)malloc(J * sizeof(float));
     MiCo_assert(scores != NULL, "[Attention] failed to allocate scores buffer");
 
+    #ifdef USE_INT8_KV
+    // pre-quantized key/value buffers for current (b, h), reused across query positions
+    int8_t *k_int8 = (int8_t *)malloc(J * F * sizeof(int8_t));
+    int8_t *v_int8 = (int8_t *)malloc(J * F * sizeof(int8_t));
+    float *k_scales = (float *)malloc(J * sizeof(float));
+    float *v_scales = (float *)malloc(J * sizeof(float));
+    MiCo_assert(k_int8 != NULL && v_int8 != NULL && k_scales != NULL && v_scales != NULL,
+                "[Attention] failed to allocate quantized KV buffers");
+    #endif
+
     long start_time = MiCo_time();
 
     for (size_t b = 0; b < B; b++){
         for (size_t h = 0; h < H; h++){
+            #ifdef USE_INT8_KV
+            // quantize all key and value vectors for this (b, h) once
+            for (size_t j = 0; j < J; j++){
+                size_t k_base = idx4(b, h, j, 0, H, J, F);
+                size_t v_base = idx4(b, h, j, 0, H, J, F);
+                k_scales[j] = __FP32toQ8((qbyte*)(k_int8 + j * F), &k->data[k_base], F);
+                v_scales[j] = __FP32toQ8((qbyte*)(v_int8 + j * F), &v->data[v_base], F);
+            }
+            #endif
+
             for (size_t i = 0; i < I; i++){
+                size_t q_base = idx4(b, h, i, 0, H, I, F);
+
+                #ifdef USE_INT8_Q
+                int8_t q_int8[F];
+                float q_scale = __FP32toQ8((qbyte*)q_int8, &q->data[q_base], F);
+                #endif
+
+                // compute attention scores: Q @ K^T / scale
+                #if defined(USE_INT8_Q) && defined(USE_INT8_KV)
+                for (size_t j = 0; j < J; j++){
+                    int32_t acc = 0;
+                    int8_t *kj = k_int8 + j * F;
+                    for (size_t f = 0; f < F; f++){
+                        acc += (int32_t)q_int8[f] * (int32_t)kj[f];
+                    }
+                    scores[j] = ((float)acc * q_scale * k_scales[j]) / scale;
+                }
+                #elif defined(USE_INT8_Q)
+                for (size_t j = 0; j < J; j++){
+                    int32_t acc = 0;
+                    size_t k_base_j = idx4(b, h, j, 0, H, J, F);
+                    for (size_t f = 0; f < F; f++){
+                        acc += (int32_t)q_int8[f] * (int32_t)k->data[k_base_j + f];
+                    }
+                    scores[j] = ((float)acc * q_scale) / scale;
+                }
+                #elif defined(USE_INT8_KV)
+                for (size_t j = 0; j < J; j++){
+                    int32_t acc = 0;
+                    int8_t *kj = k_int8 + j * F;
+                    for (size_t f = 0; f < F; f++){
+                        acc += (int32_t)q->data[q_base + f] * (int32_t)kj[f];
+                    }
+                    scores[j] = ((float)acc * k_scales[j]) / scale;
+                }
+                #else
                 for (size_t j = 0; j < J; j++){
                     float sum = 0.0f;
+                    size_t k_base_j = idx4(b, h, j, 0, H, J, F);
                     for (size_t f = 0; f < F; f++){
-                        size_t q_idx = idx4(b, h, i, f, H, I, F);
-                        size_t k_idx = idx4(b, h, j, f, H, J, F);
-                        sum += q->data[q_idx] * k->data[k_idx];
+                        sum += q->data[q_base + f] * k->data[k_base_j + f];
                     }
                     scores[j] = sum / scale;
                 }
+                #endif
 
                 MiCo_softmax_vec(scores, scores, J);
 
+                // weighted sum of values
+                #ifdef USE_INT8_KV
+                for (size_t f = 0; f < F; f++){
+                    float out_sum = 0.0f;
+                    for (size_t j = 0; j < J; j++){
+                        out_sum += scores[j] * v_scales[j] * (float)v_int8[j * F + f];
+                    }
+                    y->data[idx4(b, i, h, f, I, H, F)] = out_sum;
+                }
+                #else
                 for (size_t f = 0; f < F; f++){
                     float out_sum = 0.0f;
                     for (size_t j = 0; j < J; j++){
@@ -423,12 +491,19 @@ void MiCo_ViT_attention_f32(
                     }
                     y->data[idx4(b, i, h, f, I, H, F)] = out_sum;
                 }
+                #endif
             }
         }
     }
     ATTN_TIMER += MiCo_time() - start_time;
 
     free(scores);
+    #ifdef USE_INT8_KV
+    free(k_int8);
+    free(v_int8);
+    free(k_scales);
+    free(v_scales);
+    #endif
 }
 
 void MiCo_einsum_bkn_bnd_bd_f32(

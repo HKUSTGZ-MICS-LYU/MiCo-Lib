@@ -1,4 +1,6 @@
 #include "nn.h"
+#include "mico_qnn.h"
+#include "mico_quant.h"
 #include "profile.h"
 #include <math.h>
 
@@ -123,6 +125,20 @@ void MiCo_multihead_attention_f32_kv8(
         float* q = query->data + h * head_size;
         // attention scores for this head
         float* att = att_buffer + h * seq_len;
+        float* xb = output->data + h * head_size;
+        
+        #ifdef USE_INT8_Q
+        int8_t q_int8[head_size];
+        float q_scale = __FP32toQ8((qbyte*)q_int8, q, head_size);
+        for (int t = 0; t <= pos; t++) {
+            int8_t* k = key_cache + t * kv_dim + (h / kv_mul) * head_size;
+            int32_t acc = 0;
+            for (int i = 0; i < head_size; i++) {
+                acc += (int32_t)q_int8[i] * (int32_t)k[i];
+            }
+            att[t] = (float)acc * q_scale * key_scales[t] * attn_scale;
+        }
+        #else
         // iterate over all timesteps, including the current one
         for (int t = 0; t <= pos; t++) {
             // get the key vector for this head and at this timestep
@@ -138,12 +154,11 @@ void MiCo_multihead_attention_f32_kv8(
             // save the score to the attention buffer
             att[t] = score;
         }
-
+        #endif
         // softmax the scores to get attention weights, from 0..pos inclusively
         softmax(att, pos + 1);
 
         // weighted sum of the values, store back into xb
-        float* xb = output->data + h * head_size;
         for(int i = 0; i < head_size; i++){
             xb[i] = 0.0f;
         }
@@ -154,10 +169,10 @@ void MiCo_multihead_attention_f32_kv8(
             // get the value scale for this timestep
             float v_scale = value_scales[t];
             // get the attention weight for this timestep
-            float a = att[t];
+            float av = att[t] * value_scales[t];
             // accumulate the weighted value into xb
             for (int i = 0; i < head_size; i++) {
-                xb[i] += a * v[i] * v_scale;
+                xb[i] += av * v[i];
             }
         }
     }
