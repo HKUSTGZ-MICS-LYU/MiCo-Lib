@@ -292,4 +292,10 @@ void MiCo_ViT_attention_f32(
     const float scale
 );
 
+void MiCo_einsum_bkn_bnd_bd_f32(
+    Tensor2D_F32 *y,
+    const Tensor3D_F32 *a,
+    const Tensor3D_F32 *x
+);
+
 #endif // __NN_H

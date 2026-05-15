@@ -430,3 +430,28 @@ void MiCo_ViT_attention_f32(
 
     free(scores);
 }
+
+void MiCo_einsum_bkn_bnd_bd_f32(
+    Tensor2D_F32 *y,
+    const Tensor3D_F32 *a,
+    const Tensor3D_F32 *x
+){
+    const size_t B = a->shape[0];
+    const size_t K = a->shape[1];
+    const size_t N = a->shape[2];
+    const size_t D = x->shape[2];
+
+    MiCo_assert(K == 1, "[einsum bkn,bnd->bd] only K=1 pooling is supported");
+    MiCo_assert(x->shape[0] == B && x->shape[1] == N, "[einsum bkn,bnd->bd] x shape mismatch");
+    MiCo_assert(y->shape[0] == B && y->shape[1] == D, "[einsum bkn,bnd->bd] y shape mismatch");
+
+    for (size_t b = 0; b < B; b++){
+        for (size_t d = 0; d < D; d++){
+            float sum = 0.0f;
+            for (size_t n = 0; n < N; n++){
+                sum += a->data[idx3(b, 0, n, K, N)] * x->data[idx3(b, n, d, N, D)];
+            }
+            y->data[idx2(b, d, D)] = sum;
+        }
+    }
+}
