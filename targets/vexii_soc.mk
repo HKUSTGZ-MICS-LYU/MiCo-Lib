@@ -53,6 +53,7 @@ VLEN ?= 128
 # For MiCo BNRV
 USE_SIMD ?= 32
 BITNET_QUANT ?= 3
+BNCFU_REG_DEPTH ?= 2
 
 CC = $(RISCV_PREFIX)-gcc
 OBJDUMP = $(RISCV_PREFIX)-objdump
@@ -117,5 +118,5 @@ endif
 
 ifneq ($(filter bncfu, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(VEXII_PATH)/bncfu/*.c)
-	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN) -DBITNET_QUANT=$(BITNET_QUANT)
+	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN) -DBITNET_QUANT=$(BITNET_QUANT) -DBNCFU_REG_DEPTH=$(BNCFU_REG_DEPTH)
 endif
