@@ -386,6 +386,11 @@ void MiCo_ViT_attention_f32(
     const Tensor4D_F32 *v,
     const float scale
 ){
+    #ifdef KIVI_ATTN
+    MiCo_ViT_kivi_attention_f32(y, q, k, v, scale);
+    return;
+    #endif
+
     const size_t B = q->shape[0];
     const size_t H = q->shape[1];
     const size_t I = q->shape[2];
