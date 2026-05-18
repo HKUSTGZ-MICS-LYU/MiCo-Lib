@@ -298,4 +298,13 @@ void MiCo_einsum_bkn_bnd_bd_f32(
     const Tensor3D_F32 *x
 );
 
+// KIVI Attention (1.58-bit ternary KV quantization)
+void MiCo_ViT_kivi_attention_f32(
+    Tensor4D_F32 *y,
+    const Tensor4D_F32 *q,
+    const Tensor4D_F32 *k,
+    const Tensor4D_F32 *v,
+    const float scale
+);
+
 #endif // __NN_H

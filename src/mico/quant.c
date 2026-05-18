@@ -160,11 +160,25 @@ __attribute__((weak)) float __FP32toQ2(qbyte* qx, float* x, size_t n){
     float scale = 1.0 / MiCo_absmax(x, n);
 
     for (int i = 0; i < n; i+=4){
-        // Unrolled 4 Times
-        qx[i/4] = (CLAMP_INT2((int8_t)(roundf2i(x[i] * scale)) & 0x3)) | 
-            (CLAMP_INT2(((int8_t)(roundf2i(x[i+1] * scale)) & 0x3)) << 2) |
-            (CLAMP_INT2(((int8_t)(roundf2i(x[i+2] * scale)) & 0x3)) << 4) |
-            (CLAMP_INT2(((int8_t)(roundf2i(x[i+3] * scale)) & 0x3)) << 6);
+        // Unrolled 4 Times — clamp before masking to preserve sign bits
+        qx[i/4] = (CLAMP_INT2((int8_t)(roundf2i(x[i] * scale))) & 0x3) |
+            ((CLAMP_INT2((int8_t)(roundf2i(x[i+1] * scale))) & 0x3) << 2) |
+            ((CLAMP_INT2((int8_t)(roundf2i(x[i+2] * scale))) & 0x3) << 4) |
+            ((CLAMP_INT2((int8_t)(roundf2i(x[i+3] * scale))) & 0x3) << 6);
+    }
+    return 1.0 / scale;
+}
+
+__attribute__((weak)) float __FP32toQ2T(qbyte* qx, float* x, size_t n){
+
+    float scale = 1.0 / MiCo_absmax(x, n);
+
+    for (int i = 0; i < n; i+=4){
+        // Unrolled 4 Times — clamp before masking to preserve sign bits
+        qx[i/4] = (CLAMP_INT2T((int8_t)(roundf2i(x[i] * scale))) & 0x3) |
+            ((CLAMP_INT2T((int8_t)(roundf2i(x[i+1] * scale))) & 0x3) << 2) |
+            ((CLAMP_INT2T((int8_t)(roundf2i(x[i+2] * scale))) & 0x3) << 4) |
+            ((CLAMP_INT2T((int8_t)(roundf2i(x[i+3] * scale))) & 0x3) << 6);
     }
     return 1.0 / scale;
 }
