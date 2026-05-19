@@ -115,6 +115,9 @@
 #define bncfu_BDOT(rd, rs1, rs2)   \
 .word ((0x0B) | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | (0x1 << 12) | (0 << 25));
 
+#define bncfu_Q2T(rd, rs1, rs2)   \
+.word ((0x0B) | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | (0x3 << 12) | (0 << 25));
+
 #define opcode_R(opcode, func3, func7, rd, rs1, rs2)   \
 .word ((opcode) | (regnum_##rd << 7) | (regnum_##rs1 << 15) | (regnum_##rs2 << 20) | ((func3) << 12) | ((func7) << 25));
 

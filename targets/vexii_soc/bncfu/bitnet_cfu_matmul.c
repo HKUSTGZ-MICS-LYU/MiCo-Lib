@@ -1,4 +1,8 @@
 #include "mico_qnn.h"
+#include "mico_quant.h"
+#include "profile.h"
+
+extern float MiCo_absmax(float* x, size_t n);
 
 #ifndef VLEN
 #define VLEN 256
@@ -16,9 +20,15 @@
 #error "BNCFU_REG_DEPTH must be >= 2"
 #endif
 
+#if VLEN > 512
+#error "BNCFU Q2T packs one VLEN result into rd, so VLEN must be <= 512"
+#endif
+
 #define BNCFU_REUSE_REGS (BNCFU_REG_DEPTH - 1)
 #define BNCFU_BYTES (VLEN / 8)
 #define BNCFU_Q8_ELEMS (VLEN / 8)
+#define BNCFU_Q2T_ELEMS (VLEN / 32)
+#define BNCFU_Q2T_BYTES (BNCFU_Q2T_ELEMS / 4)
 #define BNCFU_Q1_DOTS_PER_LOAD 8
 #define BNCFU_Q2_DOTS_PER_LOAD 4
 #define BNCFU_Q1_FULL_ELEMS (BNCFU_Q8_ELEMS * BNCFU_Q1_DOTS_PER_LOAD)
@@ -66,6 +76,63 @@
 })
 
 #define bncfu_bdot(bank) bncfu_bdot2(0, bank)
+
+#define bncfu_q2t(absmax_bits, bank) ({ \
+    uintptr_t _absmax_bits = (uintptr_t)(absmax_bits); \
+    uintptr_t _bank_reg = (uintptr_t)(bank); \
+    uint32_t _result; \
+    __asm__ volatile( \
+        ".insn r 0x0B, 0x3, 0, %0, %1, %2" \
+        : "=r"(_result) : "r"(_absmax_bits), "r"(_bank_reg) \
+    ); \
+    _result; \
+})
+
+static inline uint32_t bncfu_float_bits(float value) {
+    union {
+        float f;
+        uint32_t u;
+    } bits;
+    bits.f = value;
+    return bits.u;
+}
+
+#ifdef BNCFU_Q2T
+float __FP32toQ2T(qbyte* qx, float* x, size_t n) {
+    long start = MiCo_time();
+    float scale = 1.0 / MiCo_absmax(x, n);
+    const float absmax = 1.0 / scale;
+    const uint32_t absmax_bits = bncfu_float_bits(absmax);
+    int i = 0;
+
+    bncfu_enable();
+    bncfu_fence();
+
+    for(; i + BNCFU_Q2T_ELEMS <= (int)n; i += BNCFU_Q2T_ELEMS) {
+        bncfu_load(0, x + i);
+        const uint32_t packed = bncfu_q2t(absmax_bits, 0);
+        for(int j = 0; j < BNCFU_Q2T_BYTES; ++j) {
+            qx[i / 4 + j] = (qbyte)(packed >> (j * 8));
+        }
+    }
+
+    for(; i + 4 <= (int)n; i += 4) {
+        qx[i/4] = (CLAMP_INT2T((int8_t)(roundf2i(x[i] * scale))) & 0x3) |
+            ((CLAMP_INT2T((int8_t)(roundf2i(x[i+1] * scale))) & 0x3) << 2) |
+            ((CLAMP_INT2T((int8_t)(roundf2i(x[i+2] * scale))) & 0x3) << 4) |
+            ((CLAMP_INT2T((int8_t)(roundf2i(x[i+3] * scale))) & 0x3) << 6);
+    }
+    if(i < (int)n) {
+        qx[i/4] = 0;
+        for(int j = 0; i + j < (int)n; ++j) {
+            qx[i/4] |= (CLAMP_INT2T((int8_t)(roundf2i(x[i+j] * scale))) & 0x3) << (2 * j);
+        }
+    }
+
+    QUANT_TIMER += MiCo_time() - start;
+    return 1.0 / scale;
+}
+#endif
 
 #if BITNET_QUANT == 2
 void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
