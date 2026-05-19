@@ -1,4 +1,5 @@
 #include "mico_quant.h"
+#include "profile.h"
 
 #include <math.h>
 
@@ -170,7 +171,7 @@ __attribute__((weak)) float __FP32toQ2(qbyte* qx, float* x, size_t n){
 }
 
 __attribute__((weak)) float __FP32toQ2T(qbyte* qx, float* x, size_t n){
-
+    long start = MiCo_time();
     float scale = 1.0 / MiCo_absmax(x, n);
 
     for (int i = 0; i < n; i+=4){
@@ -180,6 +181,7 @@ __attribute__((weak)) float __FP32toQ2T(qbyte* qx, float* x, size_t n){
             ((CLAMP_INT2T((int8_t)(roundf2i(x[i+2] * scale))) & 0x3) << 4) |
             ((CLAMP_INT2T((int8_t)(roundf2i(x[i+3] * scale))) & 0x3) << 6);
     }
+    QUANT_TIMER += MiCo_time() - start;
     return 1.0 / scale;
 }
 
