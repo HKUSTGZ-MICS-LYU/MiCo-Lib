@@ -1,101 +1,9 @@
 #include "mico_qnn.h"
 #include "mico_quant.h"
 #include "profile.h"
+#include "bitnet_cfu.h"
 
 extern float MiCo_absmax(float* x, size_t n);
-
-#ifndef VLEN
-#define VLEN 256
-#endif
-
-#ifndef BITNET_QUANT
-#define BITNET_QUANT 3
-#endif
-
-#ifndef BNCFU_REG_DEPTH
-#define BNCFU_REG_DEPTH 2
-#endif
-
-#if BNCFU_REG_DEPTH < 2
-#error "BNCFU_REG_DEPTH must be >= 2"
-#endif
-
-#if VLEN > 512
-#error "BNCFU Q2T packs one VLEN result into rd, so VLEN must be <= 512"
-#endif
-
-#define BNCFU_REUSE_REGS (BNCFU_REG_DEPTH - 1)
-#define BNCFU_BYTES (VLEN / 8)
-#define BNCFU_Q8_ELEMS (VLEN / 8)
-#define BNCFU_Q2T_ELEMS (VLEN / 32)
-#define BNCFU_Q2T_BYTES (BNCFU_Q2T_ELEMS / 4)
-#define BNCFU_Q1_DOTS_PER_LOAD 8
-#define BNCFU_Q2_DOTS_PER_LOAD 4
-#define BNCFU_Q1_FULL_ELEMS (BNCFU_Q8_ELEMS * BNCFU_Q1_DOTS_PER_LOAD)
-#define BNCFU_Q2_FULL_ELEMS (BNCFU_Q8_ELEMS * BNCFU_Q2_DOTS_PER_LOAD)
-
-#define bncfu_enable() do { \
-    __asm__ volatile( \
-        "li t1, 0x80000000\n\t" \
-        "csrs 0xBC0, t1" \
-        ::: "t1" \
-    ); \
-} while(0)
-
-#define bncfu_fence() __asm__ volatile(".word 0x0000100f" ::: "memory")
-
-#define bncfu_load(bank, addr) do { \
-    uintptr_t _addr_reg = (uintptr_t)(addr); \
-    uintptr_t _bank_reg = (uintptr_t)(bank); \
-    __asm__ volatile( \
-        ".insn r 0x0B, 0x4, 0, x0, %0, %1" \
-        :: "r"(_addr_reg), "r"(_bank_reg) : "memory" \
-    ); \
-} while(0)
-
-#define bncfu_bdot2(int8_reg, lowbit_reg) ({ \
-    uintptr_t _int8_reg = (uintptr_t)(int8_reg); \
-    uintptr_t _lowbit_reg = (uintptr_t)(lowbit_reg); \
-    int32_t _result; \
-    __asm__ volatile( \
-        ".insn r 0x0B, 0x1, 0, %0, %1, %2" \
-        : "=r"(_result) : "r"(_int8_reg), "r"(_lowbit_reg) \
-    ); \
-    _result; \
-})
-
-#define bncfu_bdot2_hold(int8_reg, lowbit_reg) ({ \
-    uintptr_t _int8_reg = (uintptr_t)(int8_reg); \
-    uintptr_t _lowbit_reg = (uintptr_t)(lowbit_reg); \
-    int32_t _result; \
-    __asm__ volatile( \
-        ".insn r 0x0B, 0x0, 0, %0, %1, %2" \
-        : "=r"(_result) : "r"(_int8_reg), "r"(_lowbit_reg) \
-    ); \
-    _result; \
-})
-
-#define bncfu_bdot(bank) bncfu_bdot2(0, bank)
-
-#define bncfu_q2t(absmax_bits, bank) ({ \
-    uintptr_t _absmax_bits = (uintptr_t)(absmax_bits); \
-    uintptr_t _bank_reg = (uintptr_t)(bank); \
-    uint32_t _result; \
-    __asm__ volatile( \
-        ".insn r 0x0B, 0x3, 0, %0, %1, %2" \
-        : "=r"(_result) : "r"(_absmax_bits), "r"(_bank_reg) \
-    ); \
-    _result; \
-})
-
-static inline uint32_t bncfu_float_bits(float value) {
-    union {
-        float f;
-        uint32_t u;
-    } bits;
-    bits.f = value;
-    return bits.u;
-}
 
 #ifdef BNCFU_Q2T
 float __FP32toQ2T(qbyte* qx, float* x, size_t n) {
@@ -106,7 +14,7 @@ float __FP32toQ2T(qbyte* qx, float* x, size_t n) {
     int i = 0;
 
     bncfu_enable();
-    bncfu_fence();
+    bncfu_dma_fence();
 
     for(; i + BNCFU_Q2T_ELEMS <= (int)n; i += BNCFU_Q2T_ELEMS) {
         bncfu_load(0, x + i);
