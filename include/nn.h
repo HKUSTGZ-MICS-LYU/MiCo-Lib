@@ -164,6 +164,7 @@ void MiCo_transpose4d_f32(Tensor4D_F32 *y, const Tensor4D_F32 *x, const size_t d
 void MiCo_repeat3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x,
     const size_t rep0, const size_t rep1, const size_t rep2);
 void MiCo_getitem3d_to2d_f32(Tensor2D_F32 *y, const Tensor3D_F32 *x, const size_t index1);
+void MiCo_getitem3d_prefix_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
 
 // Mean reduction (keepdim=False)
 void MiCo_mean1d_f32(Tensor1D_F32 *y, const Tensor2D_F32 *x, const size_t dim);
@@ -174,6 +175,11 @@ void MiCo_mean3d_f32(Tensor3D_F32 *y, const Tensor4D_F32 *x, const size_t dim);
 void MiCo_meankp2d_f32(Tensor2D_F32 *y, const Tensor2D_F32 *x, const size_t dim);
 void MiCo_meankp3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x, const size_t dim);
 void MiCo_im2word(Tensor3D_F32 *y, const Tensor4D_F32 *x, const size_t patch);
+void MiCo_kwt_patch_extract_f32(Tensor3D_F32 *y, const Tensor4D_F32 *x,
+    const size_t patch_h, const size_t patch_w);
+void MiCo_kwt_patch_embedding_f32(Tensor3D_F32 *y, const Tensor4D_F32 *x,
+    const Tensor2D_F32 *weight, const Tensor1D_F32 *bias,
+    const size_t patch_h, const size_t patch_w);
 
 void __NCHW_to_NHWC_inplace(float* data, const size_t N, const size_t C, 
     const size_t H, const size_t W);
@@ -277,6 +283,14 @@ void MiCo_gelu3d_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x);
 
 // ViT Attention kernels
 void MiCo_linear_attention_f32(
+    Tensor4D_F32 *y,
+    const Tensor4D_F32 *q,
+    const Tensor4D_F32 *k,
+    const Tensor4D_F32 *v,
+    const float eps
+);
+
+void MiCo_kivi_linear_attention(
     Tensor4D_F32 *y,
     const Tensor4D_F32 *q,
     const Tensor4D_F32 *k,

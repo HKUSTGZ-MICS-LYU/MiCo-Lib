@@ -32,6 +32,34 @@ static inline int kivi_decode_ternary(uint8_t packed, size_t lane){
     return (bits == 1) ? 1 : (bits == 3) ? -1 : 0;
 }
 
+static void MiCo_init_exp_lut(void);
+static float MiCo_expf(float x);
+
+static inline float kivi_linear_phi(float x){
+    return x >= 0.0f ? x + 1.0f : MiCo_expf(x);
+}
+
+static inline int32_t kivi_dot_q8_q2t(const qbyte *x_q8, const qbyte *w_q2t, size_t n){
+    int32_t acc = 0;
+    size_t i = 0;
+    const size_t full_bytes = n / 4;
+    for (size_t byte_idx = 0; byte_idx < full_bytes; byte_idx++){
+        const uint8_t packed = (uint8_t)w_q2t[byte_idx];
+        acc += (int32_t)x_q8[i + 0] * kivi_decode_ternary(packed, 0);
+        acc += (int32_t)x_q8[i + 1] * kivi_decode_ternary(packed, 1);
+        acc += (int32_t)x_q8[i + 2] * kivi_decode_ternary(packed, 2);
+        acc += (int32_t)x_q8[i + 3] * kivi_decode_ternary(packed, 3);
+        i += 4;
+    }
+    if (i < n){
+        const uint8_t packed = (uint8_t)w_q2t[full_bytes];
+        for (size_t lane = 0; i < n; lane++, i++){
+            acc += (int32_t)x_q8[i] * kivi_decode_ternary(packed, lane);
+        }
+    }
+    return acc;
+}
+
 static inline void kivi_accum_scores_from_k(float *scores, float q_scaled, const qbyte *k_packed, size_t J){
     if (q_scaled == 0.0f) return;
 
@@ -153,6 +181,139 @@ static void MiCo_softmax_vec(float *dst, const float *src, size_t n){
         dst[i] /= sum;
     }
     SOFTMAX_TIMER += MiCo_time() - start;
+}
+
+/*
+    KIVI-style Linear Attention prototype:
+
+    Phase 1 uses the requested INT8 x INT2 path on the token reduction:
+        context[d, m] = dot(phi(K[:, d])_q8, V[:, m]_q2t)
+
+    Phase 2 intentionally keeps phi(Q) and context in FP32 for this first
+    version, so the error is isolated to the K/V low-bit context path.
+*/
+__attribute__((weak)) void MiCo_kivi_linear_attention(
+    Tensor4D_F32 *y,
+    const Tensor4D_F32 *q,
+    const Tensor4D_F32 *k,
+    const Tensor4D_F32 *v,
+    const float eps
+){
+    const size_t B = q->shape[0];
+    const size_t H = q->shape[1];
+    const size_t N = q->shape[2];
+    const size_t D = q->shape[3];
+    const size_t M = v->shape[3];
+
+    MiCo_assert(k->shape[0] == B && k->shape[1] == H && k->shape[2] == N && k->shape[3] == D,
+                "[KIVI LinearAttention] k shape mismatch");
+    MiCo_assert(v->shape[0] == B && v->shape[1] == H && v->shape[2] == N,
+                "[KIVI LinearAttention] v shape mismatch");
+    MiCo_assert(y->shape[0] == B && y->shape[1] == N && y->shape[2] == H && y->shape[3] == M,
+                "[KIVI LinearAttention] y shape mismatch");
+
+    MiCo_init_exp_lut();
+
+    const size_t packed_N = (N + 3) / 4;
+    const size_t padded_N = packed_N * 4;
+
+    long start_time = MiCo_time();
+
+    float *phi_k_col = (float *)malloc(N * sizeof(float));
+    qbyte *phi_k_q8 = (qbyte *)malloc(D * N * sizeof(qbyte));
+    float *phi_k_scales = (float *)malloc(D * sizeof(float));
+    qbyte *v_q2t = (qbyte *)malloc(M * packed_N * sizeof(qbyte));
+    float *v_scales = (float *)malloc(M * sizeof(float));
+    float *v_col = (float *)malloc(padded_N * sizeof(float));
+    float *context = (float *)malloc(H * D * M * sizeof(float));
+    float *k_sum = (float *)malloc(H * D * sizeof(float));
+    float *phi_q = (float *)malloc(N * D * sizeof(float));
+    float *num = (float *)malloc(M * sizeof(float));
+
+    MiCo_assert(phi_k_col != NULL && phi_k_q8 != NULL && phi_k_scales != NULL &&
+                v_q2t != NULL && v_scales != NULL && v_col != NULL &&
+                context != NULL && k_sum != NULL && phi_q != NULL && num != NULL,
+                "[KIVI LinearAttention] failed to allocate buffers");
+
+    for (size_t b = 0; b < B; b++){
+        memset(context, 0, H * D * M * sizeof(float));
+        memset(k_sum, 0, H * D * sizeof(float));
+
+        for (size_t h = 0; h < H; h++){
+            const size_t k_base = idx4(b, h, 0, 0, H, N, D);
+            const size_t v_base = idx4(b, h, 0, 0, H, N, M);
+
+            for (size_t d = 0; d < D; d++){
+                float sum = 0.0f;
+                for (size_t n = 0; n < N; n++){
+                    float kp = kivi_linear_phi(k->data[k_base + n * D + d]);
+                    phi_k_col[n] = kp;
+                    sum += kp;
+                }
+                k_sum[idx2(h, d, D)] = sum;
+                phi_k_scales[d] = __FP32toQ8(phi_k_q8 + d * N, phi_k_col, N);
+            }
+
+            for (size_t m = 0; m < M; m++){
+                for (size_t n = 0; n < N; n++){
+                    v_col[n] = v->data[v_base + n * M + m];
+                }
+                for (size_t n = N; n < padded_N; n++){
+                    v_col[n] = 0.0f;
+                }
+                v_scales[m] = __FP32toQ2T(v_q2t + m * packed_N, v_col, N);
+            }
+
+            for (size_t d = 0; d < D; d++){
+                const qbyte *kq = phi_k_q8 + d * N;
+                const float k_scale = phi_k_scales[d];
+                for (size_t m = 0; m < M; m++){
+                    int32_t acc = kivi_dot_q8_q2t(kq, v_q2t + m * packed_N, N);
+                    context[idx3(h, d, m, D, M)] = (float)acc * k_scale * v_scales[m];
+                }
+            }
+
+            for (size_t n = 0; n < N; n++){
+                float *phi_q_n = phi_q + n * D;
+                for (size_t d = 0; d < D; d++){
+                    phi_q_n[d] = kivi_linear_phi(q->data[idx4(b, h, n, d, H, N, D)]);
+                }
+            }
+
+            for (size_t n = 0; n < N; n++){
+                float *phi_q_n = phi_q + n * D;
+                float den = 0.0f;
+                memset(num, 0, M * sizeof(float));
+
+                for (size_t d = 0; d < D; d++){
+                    float qp = phi_q_n[d];
+                    den += qp * k_sum[idx2(h, d, D)];
+                    float *ctx_d = context + idx3(h, d, 0, D, M);
+                    for (size_t m = 0; m < M; m++){
+                        num[m] += qp * ctx_d[m];
+                    }
+                }
+                den += eps;
+
+                for (size_t m = 0; m < M; m++){
+                    y->data[idx4(b, n, h, m, N, H, M)] = num[m] / den;
+                }
+            }
+        }
+    }
+
+    ATTN_TIMER += MiCo_time() - start_time;
+
+    free(phi_k_col);
+    free(phi_k_q8);
+    free(phi_k_scales);
+    free(v_q2t);
+    free(v_scales);
+    free(v_col);
+    free(context);
+    free(k_sum);
+    free(phi_q);
+    free(num);
 }
 
 #if defined(KIVI_ATTN_REF) || defined(KIVI_COMPARE_REF)

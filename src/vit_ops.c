@@ -175,6 +175,20 @@ void MiCo_getitem3d_to2d_f32(Tensor2D_F32 *y, const Tensor3D_F32 *x, const size_
     }
 }
 
+void MiCo_getitem3d_prefix_f32(Tensor3D_F32 *y, const Tensor3D_F32 *x){
+    MiCo_assert(y->shape[0] <= x->shape[0] && y->shape[1] <= x->shape[1] && y->shape[2] == x->shape[2],
+                "[GetItem3DPrefix] output shape mismatch");
+
+    for (size_t i0 = 0; i0 < y->shape[0]; i0++){
+        for (size_t i1 = 0; i1 < y->shape[1]; i1++){
+            for (size_t i2 = 0; i2 < y->shape[2]; i2++){
+                y->data[idx3(i0, i1, i2, y->shape[1], y->shape[2])] =
+                    x->data[idx3(i0, i1, i2, x->shape[1], x->shape[2])];
+            }
+        }
+    }
+}
+
 void MiCo_im2word(Tensor3D_F32 *y, const Tensor4D_F32 *x, const size_t patch){
     const size_t batch = x->shape[0];
     #ifdef USE_ALT_LAYOUT
@@ -211,6 +225,125 @@ void MiCo_im2word(Tensor3D_F32 *y, const Tensor4D_F32 *x, const size_t patch){
                             y->data[dst_idx] = x->data[src_idx];
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+void MiCo_kwt_patch_extract_f32(
+    Tensor3D_F32 *y,
+    const Tensor4D_F32 *x,
+    const size_t patch_h,
+    const size_t patch_w
+){
+    const size_t batch = x->shape[0];
+    #ifdef USE_ALT_LAYOUT
+    const size_t in_h = x->shape[1];
+    const size_t in_w = x->shape[2];
+    const size_t in_c = x->shape[3];
+    #else
+    const size_t in_c = x->shape[1];
+    const size_t in_h = x->shape[2];
+    const size_t in_w = x->shape[3];
+    #endif
+
+    MiCo_assert(patch_h > 0 && patch_w > 0, "[KWTPatchExtract] patch size must be positive");
+    MiCo_assert(in_h % patch_h == 0 && in_w % patch_w == 0,
+                "[KWTPatchExtract] input size must be divisible by patch size");
+
+    const size_t grid_h = in_h / patch_h;
+    const size_t grid_w = in_w / patch_w;
+    const size_t n_tokens = grid_h * grid_w;
+    const size_t in_features = patch_h * patch_w * in_c;
+
+    MiCo_assert(y->shape[0] == batch && y->shape[1] == n_tokens && y->shape[2] == in_features,
+                "[KWTPatchExtract] output shape mismatch");
+
+    for (size_t b = 0; b < batch; b++){
+        for (size_t gh = 0; gh < grid_h; gh++){
+            for (size_t gw = 0; gw < grid_w; gw++){
+                const size_t token = gh * grid_w + gw;
+                for (size_t ph = 0; ph < patch_h; ph++){
+                    for (size_t pw = 0; pw < patch_w; pw++){
+                        for (size_t c = 0; c < in_c; c++){
+                            const size_t src_h = gh * patch_h + ph;
+                            const size_t src_w = gw * patch_w + pw;
+                            const size_t in_f = (ph * patch_w + pw) * in_c + c;
+                            const size_t src_idx = OFFSET_4D(b, c, src_h, src_w, batch, in_c, in_h, in_w);
+                            y->data[idx3(b, token, in_f, n_tokens, in_features)] = x->data[src_idx];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void MiCo_kwt_patch_embedding_f32(
+    Tensor3D_F32 *y,
+    const Tensor4D_F32 *x,
+    const Tensor2D_F32 *weight,
+    const Tensor1D_F32 *bias,
+    const size_t patch_h,
+    const size_t patch_w
+){
+    const size_t batch = x->shape[0];
+    #ifdef USE_ALT_LAYOUT
+    const size_t in_h = x->shape[1];
+    const size_t in_w = x->shape[2];
+    const size_t in_c = x->shape[3];
+    #else
+    const size_t in_c = x->shape[1];
+    const size_t in_h = x->shape[2];
+    const size_t in_w = x->shape[3];
+    #endif
+
+    MiCo_assert(patch_h > 0 && patch_w > 0, "[KWTPatchEmbedding] patch size must be positive");
+    MiCo_assert(in_h % patch_h == 0 && in_w % patch_w == 0,
+                "[KWTPatchEmbedding] input size must be divisible by patch size");
+
+    const size_t grid_h = in_h / patch_h;
+    const size_t grid_w = in_w / patch_w;
+    const size_t n_tokens = grid_h * grid_w;
+    const size_t in_features = patch_h * patch_w * in_c;
+
+    #ifdef USE_ALT_LAYOUT
+    const size_t out_features = weight->shape[1];
+    #else
+    const size_t out_features = weight->shape[0];
+    #endif
+
+    MiCo_assert(y->shape[0] == batch && y->shape[1] == n_tokens && y->shape[2] == out_features,
+                "[KWTPatchEmbedding] output shape mismatch");
+    MiCo_assert(bias->shape[0] == 0 || bias->shape[0] == out_features,
+                "[KWTPatchEmbedding] bias shape mismatch");
+    MiCo_assert(in_features == weight->shape[1],
+                "[KWTPatchEmbedding] weight input feature mismatch");
+
+    for (size_t b = 0; b < batch; b++){
+        for (size_t gh = 0; gh < grid_h; gh++){
+            for (size_t gw = 0; gw < grid_w; gw++){
+                const size_t token = gh * grid_w + gw;
+                for (size_t out_f = 0; out_f < out_features; out_f++){
+                    float sum = bias->shape[0] == 0 ? 0.0f : bias->data[out_f];
+                    for (size_t ph = 0; ph < patch_h; ph++){
+                        for (size_t pw = 0; pw < patch_w; pw++){
+                            for (size_t c = 0; c < in_c; c++){
+                                const size_t src_h = gh * patch_h + ph;
+                                const size_t src_w = gw * patch_w + pw;
+                                const size_t in_f = (ph * patch_w + pw) * in_c + c;
+                                const size_t src_idx = OFFSET_4D(b, c, src_h, src_w, batch, in_c, in_h, in_w);
+                                #ifdef USE_ALT_LAYOUT
+                                const size_t weight_idx = in_f * out_features + out_f;
+                                #else
+                                const size_t weight_idx = out_f * in_features + in_f;
+                                #endif
+                                sum += x->data[src_idx] * weight->data[weight_idx];
+                            }
+                        }
+                    }
+                    y->data[idx3(b, token, out_f, n_tokens, out_features)] = sum;
                 }
             }
         }
