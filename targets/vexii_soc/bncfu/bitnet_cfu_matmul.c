@@ -42,7 +42,6 @@ float __FP32toQ2T(qbyte* qx, float* x, size_t n) {
 }
 #endif
 
-#if BITNET_QUANT == 2
 void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -51,6 +50,7 @@ void MiCo_Q8x1_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
 
     bncfu_enable();
     bncfu_fence();
+    bncfu_config(BNCFU_QTYPE_1B);
 
     for(size_t i = 0; i < batch_size; ++i) {
         const int8_t *x_base = x->data + i * in_features;
@@ -88,6 +88,7 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
 
     bncfu_enable();
     bncfu_fence();
+    bncfu_config(BNCFU_QTYPE_1B);
 
     for(size_t i = 0; i < batch_size; ++i) {
         const int8_t *x_base = x->data + ((i * in_features) >> 3);
@@ -124,7 +125,7 @@ void MiCo_Q1x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
         }
     }
 }
-#elif BITNET_QUANT != 0
+
 void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
@@ -133,6 +134,7 @@ void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
 
     bncfu_enable();
     bncfu_fence();
+    bncfu_config(BNCFU_QTYPE_15B);
 
     for(size_t i = 0; i < batch_size; ++i) {
         const int8_t *x_base = x->data + i * in_features;
@@ -170,6 +172,7 @@ void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
 
     bncfu_enable();
     bncfu_fence();
+    bncfu_config(BNCFU_QTYPE_15B);
 
     for(size_t i = 0; i < batch_size; ++i) {
         const int8_t *x_base = x->data + ((i * in_features) >> 2);
@@ -206,4 +209,3 @@ void MiCo_Q2x8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w) {
         }
     }
 }
-#endif

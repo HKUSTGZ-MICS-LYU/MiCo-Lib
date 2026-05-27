@@ -7,10 +7,6 @@
 #define VLEN 256
 #endif
 
-#ifndef BITNET_QUANT
-#define BITNET_QUANT 3
-#endif
-
 #ifndef BNCFU_REG_DEPTH
 #define BNCFU_REG_DEPTH 2
 #endif
@@ -41,6 +37,9 @@
 #define BNCFU_ALWAYS_INLINE static inline __attribute__((always_inline))
 #define BNCFU_A5 15
 #define BNCFU_A0 10
+#define BNCFU_QTYPE_1B 1u
+#define BNCFU_QTYPE_2B 2u
+#define BNCFU_QTYPE_15B 3u
 #define BNCFU_ENCODE_R(func3, rd, rs1, rs2) \
     (0x0B | ((rd) << 7) | ((func3) << 12) | ((rs1) << 15) | ((rs2) << 20))
 #define BNCFU_CASES_0_7(macro) \
@@ -55,12 +54,29 @@ BNCFU_ALWAYS_INLINE void bncfu_enable(void){
 }
 
 BNCFU_ALWAYS_INLINE void bncfu_fence(void){
-    __asm__ volatile("fence rw, rw" ::: "memory");
+    __asm__ volatile(".word 0x0000100f" ::: "memory");
 }
 
 BNCFU_ALWAYS_INLINE void bncfu_dma_fence(void){
     __asm__ volatile("fence rw, rw" ::: "memory");
     __asm__ volatile(".word 0x0000100f" ::: "memory");
+}
+
+BNCFU_ALWAYS_INLINE void bncfu_config(unsigned int qtype){
+    register uint32_t result asm("a0");
+    switch(qtype) {
+    case BNCFU_QTYPE_1B:
+        __asm__ volatile(".word %[insn]" : "=&r"(result) : [insn] "i"(BNCFU_ENCODE_R(2, BNCFU_A0, BNCFU_QTYPE_1B, 0)) : "memory");
+        break;
+    case BNCFU_QTYPE_2B:
+        __asm__ volatile(".word %[insn]" : "=&r"(result) : [insn] "i"(BNCFU_ENCODE_R(2, BNCFU_A0, BNCFU_QTYPE_2B, 0)) : "memory");
+        break;
+    case BNCFU_QTYPE_15B:
+        __asm__ volatile(".word %[insn]" : "=&r"(result) : [insn] "i"(BNCFU_ENCODE_R(2, BNCFU_A0, BNCFU_QTYPE_15B, 0)) : "memory");
+        break;
+    default:
+        break;
+    }
 }
 
 BNCFU_ALWAYS_INLINE void bncfu_load(unsigned int bank, const void *addr){
