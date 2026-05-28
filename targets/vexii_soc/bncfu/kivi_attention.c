@@ -12,10 +12,6 @@
 #include <stdio.h>
 #endif
 
-#define EXP_LUT_SIZE 256
-#define EXP_LUT_MAX  16.0f
-#define EXP_LUT_STEP (EXP_LUT_MAX / (float)EXP_LUT_SIZE)
-
 extern long ATTN_TIMER;
 extern long SOFTMAX_TIMER;
 extern long EXPF_TIMER;
@@ -30,9 +26,6 @@ void MiCo_ViT_kivi_attention_ref_f32(
 );
 #endif
 
-static float exp_lut[EXP_LUT_SIZE];
-static int exp_lut_ready = 0;
-
 static inline size_t idx4(size_t i0, size_t i1, size_t i2, size_t i3, size_t d1, size_t d2, size_t d3){
     return ((i0 * d1 + i1) * d2 + i2) * d3 + i3;
 }
@@ -42,27 +35,10 @@ static inline int kivi_decode_ternary(uint8_t packed, size_t lane){
     return (bits == 1) ? 1 : (bits == 3) ? -1 : 0;
 }
 
-static void MiCo_init_exp_lut(void){
-    if (exp_lut_ready) return;
-    for (int i = 0; i < EXP_LUT_SIZE; i++){
-        exp_lut[i] = expf(-(float)i * EXP_LUT_STEP);
-    }
-    exp_lut_ready = 1;
-}
-
 static float MiCo_expf(float x){
     long start = MiCo_time();
     float res;
-#ifdef EXP_ACCEL
-    if (x >= 0.0f) return expf(x);
-    if (x <= -EXP_LUT_MAX) return 0.0f;
-    int idx = (int)(-x * (1.0f / EXP_LUT_STEP));
-    if (idx >= EXP_LUT_SIZE) idx = EXP_LUT_SIZE - 1;
-    res = exp_lut[idx];
-#else
     res = expf(x);
-#endif
-    EXPF_TIMER += MiCo_time() - start;
     return res;
 }
 
@@ -132,8 +108,6 @@ void MiCo_ViT_kivi_attention_f32(
     MiCo_assert(v->shape[0] == B && v->shape[1] == H && v->shape[2] == J && v->shape[3] == F, "[KIVI BNCFU Attention] v shape mismatch");
     MiCo_assert(y->shape[0] == B && y->shape[1] == I && y->shape[2] == H && y->shape[3] == F, "[KIVI BNCFU Attention] y shape mismatch");
     MiCo_assert(scale != 0.0f, "[KIVI BNCFU Attention] scale must be non-zero");
-
-    MiCo_init_exp_lut();
 
     const size_t packed_J = (J + 3) / 4;
     const size_t packed_F = (F + 3) / 4;

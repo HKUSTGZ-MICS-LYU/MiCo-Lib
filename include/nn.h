@@ -244,6 +244,13 @@ typedef struct MHA_Config
     int seq_len;             // sequence length
 } MiCo_MHA_Config;
 
+#ifndef MICO_LLAMA_KV_GROUP_SIZE
+#define MICO_LLAMA_KV_GROUP_SIZE 32
+#endif
+
+#define MICO_LLAMA_KV_PACKED_GROUP_BYTES(head_size) \
+    (((size_t)MICO_LLAMA_KV_GROUP_SIZE * (size_t)(head_size) + 3) / 4)
+
 void MiCo_multihead_attention_f32(
     Tensor2D_F32* output,           // [n_heads, head_size] - output buffer
     const Tensor2D_F32* query,     // [n_heads, head_size] - query vectors
@@ -264,6 +271,31 @@ void MiCo_multihead_attention_f32_kv8(
     float* att_buffer,             // [n_heads, seq_len] - attention scores buffer
     const int pos,                 // current position
     const MiCo_MHA_Config* cfg     // MHA configuration
+);
+
+void MiCo_llama_pack_kv_group_q2t(
+    const float* key_cache,        // [MICO_LLAMA_KV_GROUP_SIZE, kv_dim] FP32 group key cache
+    const float* value_cache,      // [MICO_LLAMA_KV_GROUP_SIZE, kv_dim] FP32 group value cache
+    int8_t* key_cache_q2t,         // [n_groups, n_kv_heads, packed_group_bytes]
+    int8_t* value_cache_q2t,       // [n_groups, n_kv_heads, packed_group_bytes]
+    float* key_scales,             // [n_groups, n_kv_heads, head_size]
+    float* value_scales,           // [n_groups, n_kv_heads, MICO_LLAMA_KV_GROUP_SIZE]
+    const int group_id,
+    const MiCo_MHA_Config* cfg
+);
+
+void MiCo_llama_kivi_attention_f32(
+    Tensor2D_F32* output,           // [n_heads, head_size] - output buffer
+    const Tensor2D_F32* query,      // [n_heads, head_size] - query vectors
+    const float* key_cache,         // [MICO_LLAMA_KV_GROUP_SIZE, kv_dim] FP32 current-group key cache
+    const float* value_cache,       // [MICO_LLAMA_KV_GROUP_SIZE, kv_dim] FP32 current-group value cache
+    const int8_t* key_cache_q2t,    // historical packed q2t key cache
+    const int8_t* value_cache_q2t,  // historical packed q2t value cache
+    const float* key_scales,        // [n_groups, n_kv_heads, head_size]
+    const float* value_scales,      // [n_groups, n_kv_heads, MICO_LLAMA_KV_GROUP_SIZE]
+    float* att_buffer,              // [n_heads, seq_len] - attention scores buffer
+    const int pos,
+    const MiCo_MHA_Config* cfg
 );
 
 // Softmax Function
