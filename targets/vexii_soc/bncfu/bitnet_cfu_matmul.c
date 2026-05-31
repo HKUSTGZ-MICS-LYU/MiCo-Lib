@@ -3,7 +3,43 @@
 #include "profile.h"
 #include "bitnet_cfu.h"
 
+#ifndef USE_RVF
+#include <math.h>
+#define roundf2i(x) roundf(x)
+#endif
+
 extern float MiCo_absmax(float* x, size_t n);
+
+#ifdef BNCFU_Q8
+float __FP32toQ8(qbyte* qx, float* x, size_t n) {
+    long start = MiCo_time();
+    float scale = 127.0 / MiCo_absmax(x, n);
+    const float absmax = 127.0 / scale;
+    const uint32_t absmax_bits = bncfu_float_bits(absmax);
+    int i = 0;
+
+    bncfu_enable();
+    bncfu_dma_fence();
+
+    for(; i + BNCFU_FP32_ELEMS <= (int)n; i += BNCFU_FP32_ELEMS) {
+        bncfu_load(0, x + i);
+        for(unsigned int chunk = 0; chunk < BNCFU_Q8_QUANT_CHUNKS; ++chunk) {
+            const uint32_t packed = bncfu_q8(absmax_bits, 0, chunk);
+            const int base = i + (int)(chunk * BNCFU_Q8_QUANT_ELEMS);
+            for(int j = 0; j < BNCFU_Q8_QUANT_BYTES; ++j) {
+                qx[base + j] = (qbyte)(packed >> (j * 8));
+            }
+        }
+    }
+
+    for(; i < (int)n; ++i) {
+        qx[i] = (int8_t)(roundf2i(x[i] * scale));
+    }
+
+    QUANT_TIMER += MiCo_time() - start;
+    return 1.0 / scale;
+}
+#endif
 
 #ifdef BNCFU_Q2T
 float __FP32toQ2T(qbyte* qx, float* x, size_t n) {

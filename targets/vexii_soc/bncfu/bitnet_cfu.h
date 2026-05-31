@@ -23,11 +23,45 @@
 #error "BNCFU Q2T packs one VLEN result into rd, so VLEN must be <= 512"
 #endif
 
+#ifndef BNCFU_QUANT_WIDTH
+#if VLEN < 128
+#define BNCFU_QUANT_WIDTH VLEN
+#else
+#define BNCFU_QUANT_WIDTH 128
+#endif
+#endif
+
+#ifndef BNCFU_Q8_QUANT_WIDTH
+#define BNCFU_Q8_QUANT_WIDTH BNCFU_QUANT_WIDTH
+#endif
+
+#if BNCFU_QUANT_WIDTH > 128
+#error "BNCFU quant packs up to four INT8 lanes into rd, so BNCFU_QUANT_WIDTH must be <= 128"
+#endif
+
+#if (BNCFU_QUANT_WIDTH % 32) != 0
+#error "BNCFU_QUANT_WIDTH must hold complete FP32 lanes"
+#endif
+
+#if (VLEN % BNCFU_QUANT_WIDTH) != 0
+#error "VLEN must be a multiple of BNCFU_QUANT_WIDTH"
+#endif
+
+#if BNCFU_Q8_QUANT_WIDTH != BNCFU_QUANT_WIDTH
+#error "BNCFU_Q8_QUANT_WIDTH is deprecated; use BNCFU_QUANT_WIDTH"
+#endif
+
 #define BNCFU_REUSE_REGS (BNCFU_REG_DEPTH - 1)
 #define BNCFU_BYTES (VLEN / 8)
+#define BNCFU_FP32_ELEMS (VLEN / 32)
 #define BNCFU_Q8_ELEMS (VLEN / 8)
-#define BNCFU_Q2T_ELEMS (VLEN / 32)
+#define BNCFU_QUANT_ELEMS (BNCFU_QUANT_WIDTH / 32)
+#define BNCFU_QUANT_CHUNKS (VLEN / BNCFU_QUANT_WIDTH)
+#define BNCFU_Q2T_ELEMS BNCFU_FP32_ELEMS
 #define BNCFU_Q2T_BYTES (BNCFU_Q2T_ELEMS / 4)
+#define BNCFU_Q8_QUANT_ELEMS BNCFU_QUANT_ELEMS
+#define BNCFU_Q8_QUANT_BYTES BNCFU_Q8_QUANT_ELEMS
+#define BNCFU_Q8_QUANT_CHUNKS BNCFU_QUANT_CHUNKS
 #define BNCFU_Q1_DOTS_PER_LOAD 8
 #define BNCFU_Q2_DOTS_PER_LOAD 4
 #define BNCFU_Q2_SLICE_BYTES (BNCFU_BYTES / BNCFU_Q2_DOTS_PER_LOAD)
@@ -42,8 +76,12 @@
 #define BNCFU_QTYPE_15B 3u
 #define BNCFU_ENCODE_R(func3, rd, rs1, rs2) \
     (0x0B | ((rd) << 7) | ((func3) << 12) | ((rs1) << 15) | ((rs2) << 20))
+#define BNCFU_ENCODE_R7(func7, func3, rd, rs1, rs2) \
+    (BNCFU_ENCODE_R(func3, rd, rs1, rs2) | ((func7) << 25))
 #define BNCFU_CASES_0_7(macro) \
     macro(0) macro(1) macro(2) macro(3) macro(4) macro(5) macro(6) macro(7)
+#define BNCFU_CASES_0_15(macro) \
+    BNCFU_CASES_0_7(macro) macro(8) macro(9) macro(10) macro(11) macro(12) macro(13) macro(14) macro(15)
 
 BNCFU_ALWAYS_INLINE void bncfu_enable(void){
     __asm__ volatile(
@@ -170,6 +208,32 @@ BNCFU_ALWAYS_INLINE uint32_t bncfu_q2t(uint32_t absmax_bits, unsigned int bank){
         break;
         BNCFU_CASES_0_7(BNCFU_Q2T_CASE)
 #undef BNCFU_Q2T_CASE
+    default:
+        result = 0;
+        break;
+    }
+    return result;
+}
+
+BNCFU_ALWAYS_INLINE uint32_t bncfu_q8(uint32_t absmax_bits, unsigned int bank, unsigned int chunk){
+    register uintptr_t absmax_a5 asm("a5") = (uintptr_t)absmax_bits;
+    register uint32_t result asm("a0");
+
+    switch((chunk << 3) | bank) {
+#define BNCFU_Q8_CASE(chunk_id, bank_id) \
+    case ((chunk_id) << 3) | (bank_id): \
+        __asm__ volatile( \
+            ".word %[insn]" \
+            : "=&r"(result) \
+            : [insn] "i"(BNCFU_ENCODE_R7(chunk_id, 5, BNCFU_A0, BNCFU_A5, bank_id)), "r"(absmax_a5) \
+            : "memory"); \
+        break;
+#define BNCFU_Q8_BANK_CASES(chunk_id) \
+    BNCFU_Q8_CASE(chunk_id, 0) BNCFU_Q8_CASE(chunk_id, 1) BNCFU_Q8_CASE(chunk_id, 2) BNCFU_Q8_CASE(chunk_id, 3) \
+    BNCFU_Q8_CASE(chunk_id, 4) BNCFU_Q8_CASE(chunk_id, 5) BNCFU_Q8_CASE(chunk_id, 6) BNCFU_Q8_CASE(chunk_id, 7)
+        BNCFU_CASES_0_15(BNCFU_Q8_BANK_CASES)
+#undef BNCFU_Q8_BANK_CASES
+#undef BNCFU_Q8_CASE
     default:
         result = 0;
         break;
