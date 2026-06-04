@@ -335,8 +335,20 @@ void MiCo_ViT_kivi_attention_ref_f32(
     const size_t padded_F = packed_F * 4;
 
     float *scores = (float *)malloc(J * sizeof(float));
-    qbyte *k_q = (qbyte *)malloc(F * packed_J * sizeof(qbyte));
-    float *k_scales = (float *)malloc(F * sizeof(float));
+    qbyte *k_q = (qbyte *)malloc(
+#ifdef KIVI_K_PER_TOKEN
+        J * packed_F
+#else
+        F * packed_J
+#endif
+        * sizeof(qbyte));
+    float *k_scales = (float *)malloc(
+#ifdef KIVI_K_PER_TOKEN
+        J
+#else
+        F
+#endif
+        * sizeof(float));
     qbyte *v_q = (qbyte *)malloc(J * packed_F * sizeof(qbyte));
     float *v_scales = (float *)malloc(J * sizeof(float));
     size_t max_buf = padded_J > padded_F ? padded_J : padded_F;
@@ -350,6 +362,15 @@ void MiCo_ViT_kivi_attention_ref_f32(
             size_t k_base = idx4(b, h, 0, 0, H, J, F);
             size_t v_base = idx4(b, h, 0, 0, H, J, F);
 
+#ifdef KIVI_K_PER_TOKEN
+            for (size_t j = 0; j < J; j++){
+                memcpy(temp_buf, &k->data[k_base + j * F], F * sizeof(float));
+                for (size_t f = F; f < padded_F; f++){
+                    temp_buf[f] = 0.0f;
+                }
+                k_scales[j] = __FP32toQ2T(k_q + j * packed_F, temp_buf, F);
+            }
+#else
             for (size_t f = 0; f < F; f++){
                 for (size_t j = 0; j < J; j++){
                     temp_buf[j] = k->data[k_base + j * F + f];
@@ -359,6 +380,7 @@ void MiCo_ViT_kivi_attention_ref_f32(
                 }
                 k_scales[f] = __FP32toQ2T(k_q + f * packed_J, temp_buf, J);
             }
+#endif
 
             for (size_t j = 0; j < J; j++){
                 memcpy(temp_buf, &v->data[v_base + j * F], F * sizeof(float));
@@ -373,11 +395,20 @@ void MiCo_ViT_kivi_attention_ref_f32(
 
                 for (size_t j = 0; j < J; j++){
                     float sum = 0.0f;
+#ifdef KIVI_K_PER_TOKEN
+                    const qbyte *k_token = k_q + j * packed_F;
+                    for (size_t f = 0; f < F; f++){
+                        const uint8_t packed = (uint8_t)k_token[f / 4];
+                        float k_val = (float)kivi_decode_ternary(packed, f % 4);
+                        sum += q->data[q_base + f] * k_val * k_scales[j];
+                    }
+#else
                     for (size_t f = 0; f < F; f++){
                         const uint8_t packed = (uint8_t)k_q[f * packed_J + j / 4];
                         float k_val = (float)kivi_decode_ternary(packed, j % 4);
                         sum += q->data[q_base + f] * k_val * k_scales[f];
                     }
+#endif
                     scores[j] = sum / scale;
                 }
 
@@ -447,9 +478,20 @@ __attribute__((weak)) void MiCo_ViT_kivi_attention_f32(
     float *output_buf = (float *)malloc(F * sizeof(float));
     MiCo_assert(output_buf != NULL, "[KIVI Attention] failed to allocate output buffer");
 
-    // K per-channel: one packed_J qbytes per channel, one scale per channel
-    qbyte *k_q = (qbyte *)malloc(F * packed_J * sizeof(qbyte));
-    float *k_scales = (float *)malloc(F * sizeof(float));
+    qbyte *k_q = (qbyte *)malloc(
+#ifdef KIVI_K_PER_TOKEN
+        J * packed_F
+#else
+        F * packed_J
+#endif
+        * sizeof(qbyte));
+    float *k_scales = (float *)malloc(
+#ifdef KIVI_K_PER_TOKEN
+        J
+#else
+        F
+#endif
+        * sizeof(float));
     MiCo_assert(k_q != NULL && k_scales != NULL, "[KIVI Attention] failed to allocate K quant buffers");
 
 #ifdef KIVI_V_LAYOUT_OPT
@@ -462,7 +504,6 @@ __attribute__((weak)) void MiCo_ViT_kivi_attention_f32(
     float *v_scales = (float *)malloc(J * sizeof(float));
     MiCo_assert(v_q != NULL && v_scales != NULL, "[KIVI Attention] failed to allocate V quant buffers");
 
-    // Temp buffer for gathering per-channel K values (non-contiguous across J)
     size_t max_buf = padded_J > padded_F ? padded_J : padded_F;
     float *temp_buf = (float *)malloc(max_buf * sizeof(float));
     MiCo_assert(temp_buf != NULL, "[KIVI Attention] failed to allocate temp buffer");
@@ -489,6 +530,26 @@ __attribute__((weak)) void MiCo_ViT_kivi_attention_f32(
             size_t k_base = idx4(b, h, 0, 0, H, J, F);
             size_t v_base = idx4(b, h, 0, 0, H, J, F);
 
+#ifdef KIVI_K_PER_TOKEN
+            // ---- per-token quantization of K ----
+            for (size_t j = 0; j < J; j++){
+#ifdef KIVI_PROFILE_INTERNAL
+                long prof_start = MiCo_time();
+#endif
+                memcpy(temp_buf, &k->data[k_base + j * F], F * sizeof(float));
+                for (size_t f = F; f < padded_F; f++){
+                    temp_buf[f] = 0.0f;
+                }
+#ifdef KIVI_PROFILE_INTERNAL
+                kivi_prof_k_gather += MiCo_time() - prof_start;
+                prof_start = MiCo_time();
+#endif
+                k_scales[j] = __FP32toQ2T(k_q + j * packed_F, temp_buf, F);
+#ifdef KIVI_PROFILE_INTERNAL
+                kivi_prof_k_quant += MiCo_time() - prof_start;
+#endif
+            }
+#else
             // ---- per-channel quantization of K ----
             for (size_t f = 0; f < F; f++){
 #ifdef KIVI_PROFILE_INTERNAL
@@ -509,6 +570,7 @@ __attribute__((weak)) void MiCo_ViT_kivi_attention_f32(
                 kivi_prof_k_quant += MiCo_time() - prof_start;
 #endif
             }
+#endif
 
             // ---- per-token quantization of V ----
             for (size_t j = 0; j < J; j++){
@@ -551,11 +613,24 @@ __attribute__((weak)) void MiCo_ViT_kivi_attention_f32(
 #ifdef KIVI_PROFILE_INTERNAL
                 long prof_start = MiCo_time();
 #endif
+#ifdef KIVI_K_PER_TOKEN
+                for (size_t j = 0; j < J; j++){
+                    float sum = 0.0f;
+                    const qbyte *k_token = k_q + j * packed_F;
+                    for (size_t f = 0; f < F; f++){
+                        const uint8_t packed = (uint8_t)k_token[f / 4];
+                        const float k_val = (float)kivi_decode_ternary(packed, f % 4);
+                        sum += q->data[q_base + f] * k_val;
+                    }
+                    scores[j] = (sum * k_scales[j]) / scale;
+                }
+#else
                 memset(scores, 0, J * sizeof(float));
                 for (size_t f = 0; f < F; f++){
                     float q_scaled = (q->data[q_base + f] * k_scales[f]) / scale;
                     kivi_accum_scores_from_k(scores, q_scaled, k_q + f * packed_J, J);
                 }
+#endif
 #ifdef KIVI_PROFILE_INTERNAL
                 kivi_prof_score_accum += MiCo_time() - prof_start;
                 prof_start = MiCo_time();

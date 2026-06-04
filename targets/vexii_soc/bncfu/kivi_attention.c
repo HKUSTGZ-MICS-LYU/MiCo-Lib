@@ -76,6 +76,14 @@ static inline void kivi_pack_k_token_bdot(qbyte *dst, const qbyte *k_q, size_t p
     }
 }
 
+static inline void kivi_pack_k_contiguous_bdot(qbyte *dst, const qbyte *k_token, size_t base_f, size_t count){
+    for (size_t k = 0; k < count; k++){
+        const size_t f = base_f + k;
+        const uint8_t code = ((uint8_t)k_token[f >> 2] >> (2 * (f & 3))) & 0x3u;
+        dst[k >> 2] |= (qbyte)(code << (2 * (k & 3)));
+    }
+}
+
 static inline void llama_pack_v_channel_bdot(qbyte *dst, const qbyte *v_group, size_t packed_F, size_t base_t, size_t feature, size_t count){
     const size_t byte_idx = feature / 4;
     const size_t lane = feature & 3;
@@ -131,8 +139,20 @@ void MiCo_ViT_kivi_attention_f32(
     float *output_buf = (float *)malloc(F * sizeof(float));
     float *q_scaled_buf = (float *)MiCo_alloc(F * sizeof(float), MICO_ALIGN);
     float *score_scaled_buf = (float *)MiCo_alloc(J * sizeof(float), MICO_ALIGN);
-    qbyte *k_q = (qbyte *)malloc(F * packed_J * sizeof(qbyte));
-    float *k_scales = (float *)malloc(F * sizeof(float));
+    qbyte *k_q = (qbyte *)malloc(
+#ifdef KIVI_K_PER_TOKEN
+        J * packed_F
+#else
+        F * packed_J
+#endif
+        * sizeof(qbyte));
+    float *k_scales = (float *)malloc(
+#ifdef KIVI_K_PER_TOKEN
+        J
+#else
+        F
+#endif
+        * sizeof(float));
     qbyte *v_q = (qbyte *)malloc(packed_F * J * sizeof(qbyte));
     float *v_scales = (float *)malloc(J * sizeof(float));
     size_t max_buf = padded_J > padded_F ? padded_J : padded_F;
@@ -170,6 +190,25 @@ void MiCo_ViT_kivi_attention_f32(
             size_t k_base = idx4(b, h, 0, 0, H, J, F);
             size_t v_base = idx4(b, h, 0, 0, H, J, F);
 
+#ifdef KIVI_K_PER_TOKEN
+            for (size_t j = 0; j < J; j++){
+#ifdef KIVI_PROFILE_INTERNAL
+                long prof_start = MiCo_time();
+#endif
+                memcpy(temp_buf, &k->data[k_base + j * F], F * sizeof(float));
+                for (size_t f = F; f < padded_F; f++){
+                    temp_buf[f] = 0.0f;
+                }
+#ifdef KIVI_PROFILE_INTERNAL
+                kivi_prof_k_gather += MiCo_time() - prof_start;
+                prof_start = MiCo_time();
+#endif
+                k_scales[j] = __FP32toQ2T(k_q + j * packed_F, temp_buf, F);
+#ifdef KIVI_PROFILE_INTERNAL
+                kivi_prof_k_quant += MiCo_time() - prof_start;
+#endif
+            }
+#else
             for (size_t f = 0; f < F; f++){
 #ifdef KIVI_PROFILE_INTERNAL
                 long prof_start = MiCo_time();
@@ -189,6 +228,7 @@ void MiCo_ViT_kivi_attention_f32(
                 kivi_prof_k_quant += MiCo_time() - prof_start;
 #endif
             }
+#endif
 
 #ifdef KIVI_PROFILE_INTERNAL
             {
@@ -201,7 +241,11 @@ void MiCo_ViT_kivi_attention_f32(
                         const size_t count = remain < BNCFU_Q2_FULL_ELEMS ? remain : BNCFU_Q2_FULL_ELEMS;
                         qbyte *dst = k_bdot + (j * f_bdot_chunks + fc) * BNCFU_BYTES;
                         memset(dst, 0, BNCFU_BYTES);
+#ifdef KIVI_K_PER_TOKEN
+                        kivi_pack_k_contiguous_bdot(dst, k_q + j * packed_F, f_base, count);
+#else
                         kivi_pack_k_token_bdot(dst, k_q, packed_J, f_base, j, count);
+#endif
                     }
                 }
 #ifdef KIVI_PROFILE_INTERNAL
@@ -265,7 +309,11 @@ void MiCo_ViT_kivi_attention_f32(
                 long prof_start = MiCo_time();
 #endif
                 for (size_t f = 0; f < F; f++){
+#ifdef KIVI_K_PER_TOKEN
+                    q_scaled_buf[f] = q->data[q_base + f] / scale;
+#else
                     q_scaled_buf[f] = (q->data[q_base + f] * k_scales[f]) / scale;
+#endif
                 }
                 float q_i8_scale = __FP32toQ8((qbyte *)q_i8, q_scaled_buf, F);
                 for (size_t f = F; f < padded_F_bdot; f++){
@@ -309,7 +357,11 @@ void MiCo_ViT_kivi_attention_f32(
                             MiCo_assert(0, "[KIVI BNCFU Attention] score BDOT mismatch");
                         }
 #endif
+#ifdef KIVI_K_PER_TOKEN
+                        scores[j_base + col] = (float)sum[col] * q_i8_scale * k_scales[j_base + col];
+#else
                         scores[j_base + col] = (float)sum[col] * q_i8_scale;
+#endif
                     }
                 }
 #ifdef KIVI_PROFILE_INTERNAL
