@@ -31,10 +31,6 @@
 #endif
 #endif
 
-#ifndef BNCFU_Q8_QUANT_WIDTH
-#define BNCFU_Q8_QUANT_WIDTH BNCFU_QUANT_WIDTH
-#endif
-
 #if BNCFU_QUANT_WIDTH > 128
 #error "BNCFU quant packs up to four INT8 lanes into rd, so BNCFU_QUANT_WIDTH must be <= 128"
 #endif
@@ -45,10 +41,6 @@
 
 #if (VLEN % BNCFU_QUANT_WIDTH) != 0
 #error "VLEN must be a multiple of BNCFU_QUANT_WIDTH"
-#endif
-
-#if BNCFU_Q8_QUANT_WIDTH != BNCFU_QUANT_WIDTH
-#error "BNCFU_Q8_QUANT_WIDTH is deprecated; use BNCFU_QUANT_WIDTH"
 #endif
 
 #define BNCFU_REUSE_REGS (BNCFU_REG_DEPTH - 1)
