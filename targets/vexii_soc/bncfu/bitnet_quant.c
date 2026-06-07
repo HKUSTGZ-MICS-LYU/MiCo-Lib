@@ -1,5 +1,4 @@
 #include "mico_quant.h"
-#include "profile.h"
 #include "bitnet_cfu.h"
 
 #include <string.h>
@@ -31,7 +30,6 @@ static float bncfu_scalar_fp32_to_q8_padded(Tensor2D_Q8 *qx, const Tensor2D_F32 
 }
 
 float __FP32toQ8(qbyte* qx, float* x, size_t n) {
-    long start = MiCo_time();
     float scale = 127.0 / MiCo_absmax(x, n);
     const float absmax = 127.0 / scale;
     const uint32_t absmax_bits = bncfu_float_bits(absmax);
@@ -55,7 +53,6 @@ float __FP32toQ8(qbyte* qx, float* x, size_t n) {
         qx[i] = (int8_t)(roundf2i(x[i] * scale));
     }
 
-    QUANT_TIMER += MiCo_time() - start;
     return 1.0 / scale;
 }
 
@@ -101,7 +98,6 @@ void MiCo_4D_FP32toQ8(Tensor4D_Q8 *qx, const Tensor4D_F32 *x) {
 
 #ifdef BNCFU_Q2T
 float __FP32toQ2T(qbyte* qx, float* x, size_t n) {
-    long start = MiCo_time();
     float scale = 1.0 / MiCo_absmax(x, n);
     const float absmax = 1.0 / scale;
     const uint32_t absmax_bits = bncfu_float_bits(absmax);
@@ -131,7 +127,6 @@ float __FP32toQ2T(qbyte* qx, float* x, size_t n) {
         }
     }
 
-    QUANT_TIMER += MiCo_time() - start;
     return 1.0 / scale;
 }
 #endif
