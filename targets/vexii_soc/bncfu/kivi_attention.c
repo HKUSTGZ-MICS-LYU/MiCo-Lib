@@ -479,7 +479,80 @@ void MiCo_ViT_kivi_attention_f32(
 }
 
 #ifndef KIVI_BNCFU_LLAMA_DISABLE
-void MiCo_llama_kivi_attention_f32(
+void MiCo_llama_pack_kv_group_q2t_bncfu(
+    const float* key_cache,
+    const float* value_cache,
+    qbyte* key_cache_q2t,
+    qbyte* value_cache_q2t,
+    float* key_scales,
+    float* value_scales,
+    qbyte* key_cache_bdot,
+    qbyte* value_cache_bdot,
+    const int group_id,
+    const MiCo_MHA_Config* cfg
+) {
+    MiCo_llama_pack_kv_group_q2t(
+        key_cache,
+        value_cache,
+        key_cache_q2t,
+        value_cache_q2t,
+        key_scales,
+        value_scales,
+        group_id,
+        cfg
+    );
+
+    const int head_size = cfg->head_size;
+    const int n_kv_heads = cfg->n_heads / cfg->kv_mul;
+    const int group_size = MICO_LLAMA_KV_GROUP_SIZE;
+    const size_t packed_group_bytes = MICO_LLAMA_KV_PACKED_GROUP_BYTES(head_size);
+    const size_t packed_group_tokens = ((size_t)group_size + 3) / 4;
+    const size_t packed_head_size = ((size_t)head_size + 3) / 4;
+    const size_t padded_head_bdot = (((size_t)head_size + BNCFU_Q2_FULL_ELEMS - 1) / BNCFU_Q2_FULL_ELEMS) * BNCFU_Q2_FULL_ELEMS;
+    const size_t padded_group_bdot = (((size_t)group_size + BNCFU_Q8_ELEMS - 1) / BNCFU_Q8_ELEMS) * BNCFU_Q8_ELEMS;
+    const size_t head_bdot_chunks = padded_head_bdot / BNCFU_Q2_FULL_ELEMS;
+    const size_t group_bdot_chunks = padded_group_bdot / BNCFU_Q8_ELEMS;
+    const size_t k_group_bdot_bytes = MICO_LLAMA_KV_BNCFU_K_GROUP_BYTES(head_size);
+    const size_t v_group_bdot_bytes = MICO_LLAMA_KV_BNCFU_V_GROUP_BYTES(head_size);
+
+    MiCo_assert(key_cache_bdot != NULL && value_cache_bdot != NULL,
+                "[LLaMa KIVI BNCFU Pack] bdot cache is NULL");
+
+    for (int kv_head = 0; kv_head < n_kv_heads; kv_head++) {
+        const size_t group_head_idx = (size_t)group_id * (size_t)n_kv_heads + (size_t)kv_head;
+        const qbyte *k_group = key_cache_q2t + group_head_idx * packed_group_bytes;
+        const qbyte *v_group = value_cache_q2t + group_head_idx * packed_group_bytes;
+        qbyte *k_bdot_group = key_cache_bdot + group_head_idx * k_group_bdot_bytes;
+        qbyte *v_bdot_group = value_cache_bdot + group_head_idx * v_group_bdot_bytes;
+
+        for (int local_t = 0; local_t < group_size; local_t++) {
+            for (size_t hc = 0; hc < head_bdot_chunks; hc++) {
+                const size_t f_base = hc * BNCFU_Q2_FULL_ELEMS;
+                const size_t remain = f_base < (size_t)head_size ? (size_t)head_size - f_base : 0;
+                const size_t count = remain < BNCFU_Q2_FULL_ELEMS ? remain : BNCFU_Q2_FULL_ELEMS;
+                qbyte *dst = k_bdot_group + ((size_t)local_t * head_bdot_chunks + hc) * BNCFU_BYTES;
+                memset(dst, 0, BNCFU_BYTES);
+                kivi_pack_k_token_bdot(dst, k_group, packed_group_tokens, f_base, (size_t)local_t, count);
+            }
+        }
+
+        for (size_t fb = 0; fb < packed_head_size; fb++) {
+            for (size_t lane = 0; lane < 4; lane++) {
+                for (size_t gc = 0; gc < group_bdot_chunks; gc++) {
+                    const size_t local_base = gc * BNCFU_Q8_ELEMS;
+                    const size_t remain = local_base < (size_t)group_size ? (size_t)group_size - local_base : 0;
+                    const size_t count = remain < BNCFU_Q8_ELEMS ? remain : BNCFU_Q8_ELEMS;
+                    qbyte *dst = v_bdot_group + ((fb * 4 + lane) * group_bdot_chunks + gc) * BNCFU_BYTES;
+                    memset(dst, 0, BNCFU_BYTES);
+                    llama_pack_v_channel_bdot(dst, v_group, packed_head_size, local_base, fb * 4 + lane, count);
+                }
+            }
+        }
+    }
+    bncfu_dma_fence();
+}
+
+void MiCo_llama_kivi_attention_f32_bncfu(
     Tensor2D_F32* output,
     const Tensor2D_F32* query,
     const float* key_cache,
@@ -488,6 +561,8 @@ void MiCo_llama_kivi_attention_f32(
     const qbyte* value_cache_q2t,
     const float* key_scales,
     const float* value_scales,
+    const qbyte* key_cache_bdot,
+    const qbyte* value_cache_bdot,
     float* att_buffer,
     const int pos,
     const MiCo_MHA_Config* cfg
@@ -503,18 +578,20 @@ void MiCo_llama_kivi_attention_f32(
     const int current_group_start = current_group * group_size;
     const float attn_scale = 1.0f / sqrtf((float)head_size);
     const size_t packed_group_bytes = MICO_LLAMA_KV_PACKED_GROUP_BYTES(head_size);
-    const size_t packed_group_tokens = ((size_t)group_size + 3) / 4;
     const size_t packed_head_size = ((size_t)head_size + 3) / 4;
     const size_t padded_head_bdot = (((size_t)head_size + BNCFU_Q2_FULL_ELEMS - 1) / BNCFU_Q2_FULL_ELEMS) * BNCFU_Q2_FULL_ELEMS;
     const size_t padded_group_bdot = (((size_t)group_size + BNCFU_Q8_ELEMS - 1) / BNCFU_Q8_ELEMS) * BNCFU_Q8_ELEMS;
     const size_t head_bdot_chunks = padded_head_bdot / BNCFU_Q2_FULL_ELEMS;
     const size_t group_bdot_chunks = padded_group_bdot / BNCFU_Q8_ELEMS;
+    const size_t k_group_bdot_bytes = MICO_LLAMA_KV_BNCFU_K_GROUP_BYTES(head_size);
+    const size_t v_group_bdot_bytes = MICO_LLAMA_KV_BNCFU_V_GROUP_BYTES(head_size);
 
     MiCo_assert(pos >= 0 && pos < seq_len, "[LLaMa KIVI BNCFU Attention] pos out of range");
     MiCo_assert(output != NULL && query != NULL, "[LLaMa KIVI BNCFU Attention] tensor is NULL");
     MiCo_assert(key_cache != NULL && value_cache != NULL, "[LLaMa KIVI BNCFU Attention] FP32 cache is NULL");
     MiCo_assert(key_cache_q2t != NULL && value_cache_q2t != NULL, "[LLaMa KIVI BNCFU Attention] q2t cache is NULL");
     MiCo_assert(key_scales != NULL && value_scales != NULL, "[LLaMa KIVI BNCFU Attention] scale buffer is NULL");
+    MiCo_assert(key_cache_bdot != NULL && value_cache_bdot != NULL, "[LLaMa KIVI BNCFU Attention] bdot cache is NULL");
     MiCo_assert(att_buffer != NULL, "[LLaMa KIVI BNCFU Attention] attention buffer is NULL");
     MiCo_assert(kv_mul > 0 && n_kv_heads > 0, "[LLaMa KIVI BNCFU Attention] invalid GQA config");
 
@@ -524,12 +601,9 @@ void MiCo_llama_kivi_attention_f32(
     qbyte *score_int8 = (qbyte *)malloc((size_t)seq_len * sizeof(qbyte));
     float *qk_scaled = (float *)malloc((size_t)head_size * sizeof(float));
     float *score_v_scaled = (float *)malloc((size_t)group_size * sizeof(float));
-    qbyte *k_bdot = (qbyte *)MiCo_alloc((size_t)BNCFU_REUSE_REGS * BNCFU_BYTES * sizeof(qbyte), MICO_ALIGN);
-    qbyte *v_bdot = (qbyte *)MiCo_alloc(4 * group_bdot_chunks * BNCFU_BYTES * sizeof(qbyte), MICO_ALIGN);
 
     MiCo_assert(q_int8 != NULL && qk_int8 != NULL && score_v_int8 != NULL &&
-                score_int8 != NULL && qk_scaled != NULL && score_v_scaled != NULL &&
-                k_bdot != NULL && v_bdot != NULL,
+                score_int8 != NULL && qk_scaled != NULL && score_v_scaled != NULL,
                 "[LLaMa KIVI BNCFU Attention] failed to allocate quant buffers");
 
     unsigned long start_time = (unsigned long)MiCo_time();
@@ -565,8 +639,8 @@ void MiCo_llama_kivi_attention_f32(
 
         for (int group = 0; group < current_group; group++) {
             const size_t group_head_idx = (size_t)group * (size_t)n_kv_heads + (size_t)kv_head;
-            const qbyte *k_group = key_cache_q2t + group_head_idx * packed_group_bytes;
             const float *k_scale_group = key_scales + group_head_idx * (size_t)head_size;
+            const qbyte *k_bdot_group = key_cache_bdot + group_head_idx * k_group_bdot_bytes;
 
             for (int f = 0; f < head_size; f++) {
                 qk_scaled[f] = (float)q_int8[f] * k_scale_group[f];
@@ -587,13 +661,7 @@ void MiCo_llama_kivi_attention_f32(
                     const size_t dots = (count + BNCFU_Q8_ELEMS - 1) / BNCFU_Q8_ELEMS;
 
                     for (int col = 0; col < cols; col++) {
-                        qbyte *lowbit = k_bdot + (size_t)col * BNCFU_BYTES;
-                        memset(lowbit, 0, BNCFU_BYTES);
-                        kivi_pack_k_token_bdot(lowbit, k_group, packed_group_tokens, f_base, (size_t)(local_base + col), count);
-                    }
-                    bncfu_dma_fence();
-                    for (int col = 0; col < cols; col++) {
-                        const qbyte *lowbit = k_bdot + (size_t)col * BNCFU_BYTES;
+                        const qbyte *lowbit = k_bdot_group + ((size_t)(local_base + col) * head_bdot_chunks + hc) * BNCFU_BYTES;
                         bncfu_load((unsigned int)col + 1, lowbit);
                     }
                     for (size_t d = 0; d < dots; d++) {
@@ -612,15 +680,13 @@ void MiCo_llama_kivi_attention_f32(
                         const size_t f_base = hc * BNCFU_Q2_FULL_ELEMS;
                         const size_t remain = f_base < (size_t)head_size ? (size_t)head_size - f_base : 0;
                         const size_t count = remain < BNCFU_Q2_FULL_ELEMS ? remain : BNCFU_Q2_FULL_ELEMS;
-                        qbyte *lowbit = k_bdot;
-                        memset(lowbit, 0, BNCFU_BYTES);
-                        kivi_pack_k_token_bdot(lowbit, k_group, packed_group_tokens, f_base, (size_t)(local_base + col), count);
+                        const qbyte *lowbit = k_bdot_group + ((size_t)(local_base + col) * head_bdot_chunks + hc) * BNCFU_BYTES;
                         ref_sum += kivi_bdot2_scalar(qk_int8 + f_base, lowbit, count);
                     }
                     if (sum[col] != ref_sum) {
                         printf("LLAMA_KIVI_SCORE_BDOT_MISMATCH h=%d group=%d local=%d sum=%d ref=%d first_q=%d first_w=%d\n",
                                h, group, local_base + col, (int)sum[col], (int)ref_sum,
-                               (int)qk_int8[0], (int)((uint8_t *)k_bdot)[0]);
+                               (int)qk_int8[0], (int)((const uint8_t *)k_bdot_group)[0]);
                         MiCo_assert(0, "[LLaMa KIVI BNCFU Attention] score BDOT mismatch");
                     }
 #endif
@@ -661,8 +727,8 @@ void MiCo_llama_kivi_attention_f32(
 
         for (int group = 0; group < current_group; group++) {
             const size_t group_head_idx = (size_t)group * (size_t)n_kv_heads + (size_t)kv_head;
-            const qbyte *v_group = value_cache_q2t + group_head_idx * packed_group_bytes;
             const float *v_scale_group = value_scales + group_head_idx * (size_t)group_size;
+            const qbyte *v_bdot_group = value_cache_bdot + group_head_idx * v_group_bdot_bytes;
 
             for (int local_t = 0; local_t < group_size; local_t++) {
                 const int token = group * group_size + local_t;
@@ -674,43 +740,63 @@ void MiCo_llama_kivi_attention_f32(
             }
 
             for (size_t fb = 0; fb < packed_head_size; fb++) {
-                for (size_t lane = 0; lane < 4; lane++) {
-                    for (size_t gc = 0; gc < group_bdot_chunks; gc++) {
-                        const size_t local_base = gc * BNCFU_Q8_ELEMS;
-                        const size_t remain = local_base < (size_t)group_size ? (size_t)group_size - local_base : 0;
-                        const size_t count = remain < BNCFU_Q8_ELEMS ? remain : BNCFU_Q8_ELEMS;
-                        qbyte *dst = v_bdot + (lane * group_bdot_chunks + gc) * BNCFU_BYTES;
-                        memset(dst, 0, BNCFU_BYTES);
-                        llama_pack_v_channel_bdot(dst, v_group, packed_head_size, local_base, fb * 4 + lane, count);
-                    }
-                }
+                int32_t o0 = 0;
+                int32_t o1 = 0;
+                int32_t o2 = 0;
+                int32_t o3 = 0;
+                for (size_t gc = 0; gc < group_bdot_chunks; gc++) {
+                    const size_t local_base = gc * BNCFU_Q8_ELEMS;
+                    bncfu_load(0, score_v_int8 + local_base);
 
-                bncfu_dma_fence();
-                for (size_t lane = 0; lane < 4; lane++) {
-                    const size_t feature = fb * 4 + lane;
-                    int32_t acc = 0;
-                    for (size_t gc = 0; gc < group_bdot_chunks; gc++) {
-                        const size_t local_base = gc * BNCFU_Q8_ELEMS;
-                        bncfu_load(0, score_v_int8 + local_base);
-                        bncfu_load(1, v_bdot + (lane * group_bdot_chunks + gc) * BNCFU_BYTES);
-                        acc += bncfu_bdot2(0, 1);
-                    }
-#ifdef KIVI_BNCFU_INT8_VERIFY
-                    int32_t ref_acc = 0;
-                    for (size_t gc = 0; gc < group_bdot_chunks; gc++) {
-                        const size_t local_base = gc * BNCFU_Q8_ELEMS;
-                        const size_t remain = local_base < (size_t)group_size ? (size_t)group_size - local_base : 0;
-                        const size_t count = remain < BNCFU_Q8_ELEMS ? remain : BNCFU_Q8_ELEMS;
-                        ref_acc += kivi_bdot2_scalar(score_v_int8 + local_base,
-                                                     v_bdot + (lane * group_bdot_chunks + gc) * BNCFU_BYTES,
-                                                     count);
-                    }
-                    MiCo_assert(acc == ref_acc, "[LLaMa KIVI BNCFU Attention] output BDOT mismatch");
-#endif
-                    if (feature < (size_t)head_size) {
-                        out[feature] += (float)acc * score_scale * score_v_scale;
-                    }
+                    const qbyte *lowbit0 = v_bdot_group + ((fb * 4 + 0) * group_bdot_chunks + gc) * BNCFU_BYTES;
+                    bncfu_load(1, lowbit0);
+                    o0 += bncfu_bdot2(0, 1);
+
+                    const qbyte *lowbit1 = v_bdot_group + ((fb * 4 + 1) * group_bdot_chunks + gc) * BNCFU_BYTES;
+                    bncfu_load(1, lowbit1);
+                    o1 += bncfu_bdot2(0, 1);
+
+                    const qbyte *lowbit2 = v_bdot_group + ((fb * 4 + 2) * group_bdot_chunks + gc) * BNCFU_BYTES;
+                    bncfu_load(1, lowbit2);
+                    o2 += bncfu_bdot2(0, 1);
+
+                    const qbyte *lowbit3 = v_bdot_group + ((fb * 4 + 3) * group_bdot_chunks + gc) * BNCFU_BYTES;
+                    bncfu_load(1, lowbit3);
+                    o3 += bncfu_bdot2(0, 1);
                 }
+#ifdef KIVI_BNCFU_INT8_VERIFY
+                int32_t ref_o0 = 0;
+                int32_t ref_o1 = 0;
+                int32_t ref_o2 = 0;
+                int32_t ref_o3 = 0;
+                for (size_t gc = 0; gc < group_bdot_chunks; gc++) {
+                    const size_t local_base = gc * BNCFU_Q8_ELEMS;
+                    const size_t remain = local_base < (size_t)group_size ? (size_t)group_size - local_base : 0;
+                    const size_t count = remain < BNCFU_Q8_ELEMS ? remain : BNCFU_Q8_ELEMS;
+                    ref_o0 += kivi_bdot2_scalar(score_v_int8 + local_base,
+                                                 v_bdot_group + ((fb * 4 + 0) * group_bdot_chunks + gc) * BNCFU_BYTES,
+                                                 count);
+                    ref_o1 += kivi_bdot2_scalar(score_v_int8 + local_base,
+                                                 v_bdot_group + ((fb * 4 + 1) * group_bdot_chunks + gc) * BNCFU_BYTES,
+                                                 count);
+                    ref_o2 += kivi_bdot2_scalar(score_v_int8 + local_base,
+                                                 v_bdot_group + ((fb * 4 + 2) * group_bdot_chunks + gc) * BNCFU_BYTES,
+                                                 count);
+                    ref_o3 += kivi_bdot2_scalar(score_v_int8 + local_base,
+                                                 v_bdot_group + ((fb * 4 + 3) * group_bdot_chunks + gc) * BNCFU_BYTES,
+                                                 count);
+                }
+                MiCo_assert(o0 == ref_o0 && o1 == ref_o1 && o2 == ref_o2 && o3 == ref_o3,
+                            "[LLaMa KIVI BNCFU Attention] output BDOT mismatch");
+#endif
+                const size_t feature0 = fb * 4 + 0;
+                const size_t feature1 = fb * 4 + 1;
+                const size_t feature2 = fb * 4 + 2;
+                const size_t feature3 = fb * 4 + 3;
+                if (feature0 < (size_t)head_size) out[feature0] += (float)o0 * score_scale * score_v_scale;
+                if (feature1 < (size_t)head_size) out[feature1] += (float)o1 * score_scale * score_v_scale;
+                if (feature2 < (size_t)head_size) out[feature2] += (float)o2 * score_scale * score_v_scale;
+                if (feature3 < (size_t)head_size) out[feature3] += (float)o3 * score_scale * score_v_scale;
             }
         }
 #ifdef KIVI_PROFILE_INTERNAL
@@ -751,8 +837,77 @@ void MiCo_llama_kivi_attention_f32(
     free(score_int8);
     free(qk_scaled);
     free(score_v_scaled);
-    MiCo_free(k_bdot);
-    MiCo_free(v_bdot);
+}
+
+void MiCo_llama_kivi_attention_f32(
+    Tensor2D_F32* output,
+    const Tensor2D_F32* query,
+    const float* key_cache,
+    const float* value_cache,
+    const qbyte* key_cache_q2t,
+    const qbyte* value_cache_q2t,
+    const float* key_scales,
+    const float* value_scales,
+    float* att_buffer,
+    const int pos,
+    const MiCo_MHA_Config* cfg
+) {
+    const int head_size = cfg->head_size;
+    const int n_kv_heads = cfg->n_heads / cfg->kv_mul;
+    const int n_groups = (cfg->seq_len + MICO_LLAMA_KV_GROUP_SIZE - 1) / MICO_LLAMA_KV_GROUP_SIZE;
+    const size_t k_bytes = (size_t)n_groups * (size_t)n_kv_heads * MICO_LLAMA_KV_BNCFU_K_GROUP_BYTES(head_size);
+    const size_t v_bytes = (size_t)n_groups * (size_t)n_kv_heads * MICO_LLAMA_KV_BNCFU_V_GROUP_BYTES(head_size);
+    qbyte *key_bdot = (qbyte *)MiCo_alloc(k_bytes, MICO_ALIGN);
+    qbyte *value_bdot = (qbyte *)MiCo_alloc(v_bytes, MICO_ALIGN);
+    MiCo_assert(key_bdot != NULL && value_bdot != NULL,
+                "[LLaMa KIVI BNCFU Attention] failed to allocate compatibility bdot cache");
+    memset(key_bdot, 0, k_bytes);
+    memset(value_bdot, 0, v_bytes);
+
+    for (int group = 0; group <= pos / MICO_LLAMA_KV_GROUP_SIZE; group++) {
+        const int group_base = group * MICO_LLAMA_KV_GROUP_SIZE;
+        if (group_base >= cfg->seq_len) break;
+        for (int kv_head = 0; kv_head < n_kv_heads; kv_head++) {
+            const size_t group_head_idx = (size_t)group * (size_t)n_kv_heads + (size_t)kv_head;
+            const qbyte *k_group = key_cache_q2t + group_head_idx * MICO_LLAMA_KV_PACKED_GROUP_BYTES(head_size);
+            const qbyte *v_group = value_cache_q2t + group_head_idx * MICO_LLAMA_KV_PACKED_GROUP_BYTES(head_size);
+            qbyte *k_bdot_group = key_bdot + group_head_idx * MICO_LLAMA_KV_BNCFU_K_GROUP_BYTES(head_size);
+            qbyte *v_bdot_group = value_bdot + group_head_idx * MICO_LLAMA_KV_BNCFU_V_GROUP_BYTES(head_size);
+            const size_t packed_group_tokens = ((size_t)MICO_LLAMA_KV_GROUP_SIZE + 3) / 4;
+            const size_t packed_head_size = ((size_t)head_size + 3) / 4;
+            const size_t head_chunks = MICO_LLAMA_KV_BNCFU_HEAD_CHUNKS(head_size);
+            const size_t group_chunks = MICO_LLAMA_KV_BNCFU_GROUP_CHUNKS;
+
+            for (int local_t = 0; local_t < MICO_LLAMA_KV_GROUP_SIZE; local_t++) {
+                for (size_t hc = 0; hc < head_chunks; hc++) {
+                    const size_t f_base = hc * BNCFU_Q2_FULL_ELEMS;
+                    const size_t remain = f_base < (size_t)head_size ? (size_t)head_size - f_base : 0;
+                    const size_t count = remain < BNCFU_Q2_FULL_ELEMS ? remain : BNCFU_Q2_FULL_ELEMS;
+                    qbyte *dst = k_bdot_group + ((size_t)local_t * head_chunks + hc) * BNCFU_BYTES;
+                    memset(dst, 0, BNCFU_BYTES);
+                    kivi_pack_k_token_bdot(dst, k_group, packed_group_tokens, f_base, (size_t)local_t, count);
+                }
+            }
+            for (size_t fb = 0; fb < packed_head_size; fb++) {
+                for (size_t lane = 0; lane < 4; lane++) {
+                    for (size_t gc = 0; gc < group_chunks; gc++) {
+                        const size_t local_base = gc * BNCFU_Q8_ELEMS;
+                        const size_t remain = local_base < MICO_LLAMA_KV_GROUP_SIZE ? MICO_LLAMA_KV_GROUP_SIZE - local_base : 0;
+                        const size_t count = remain < BNCFU_Q8_ELEMS ? remain : BNCFU_Q8_ELEMS;
+                        qbyte *dst = v_bdot_group + ((fb * 4 + lane) * group_chunks + gc) * BNCFU_BYTES;
+                        memset(dst, 0, BNCFU_BYTES);
+                        llama_pack_v_channel_bdot(dst, v_group, packed_head_size, local_base, fb * 4 + lane, count);
+                    }
+                }
+            }
+        }
+    }
+    bncfu_dma_fence();
+    MiCo_llama_kivi_attention_f32_bncfu(
+        output, query, key_cache, value_cache, key_cache_q2t, value_cache_q2t,
+        key_scales, value_scales, key_bdot, value_bdot, att_buffer, pos, cfg);
+    MiCo_free(key_bdot);
+    MiCo_free(value_bdot);
 }
 #endif
 

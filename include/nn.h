@@ -251,6 +251,23 @@ typedef struct MHA_Config
 #define MICO_LLAMA_KV_PACKED_GROUP_BYTES(head_size) \
     (((size_t)MICO_LLAMA_KV_GROUP_SIZE * (size_t)(head_size) + 3) / 4)
 
+#if defined(KIVI_BNCFU_INT8_BDOT)
+#ifndef VLEN
+#define VLEN 256
+#endif
+#define MICO_LLAMA_KV_BNCFU_BYTES (VLEN / 8)
+#define MICO_LLAMA_KV_BNCFU_Q8_ELEMS (VLEN / 8)
+#define MICO_LLAMA_KV_BNCFU_Q2_FULL_ELEMS (MICO_LLAMA_KV_BNCFU_Q8_ELEMS * 4)
+#define MICO_LLAMA_KV_BNCFU_HEAD_CHUNKS(head_size) \
+    (((size_t)(head_size) + MICO_LLAMA_KV_BNCFU_Q2_FULL_ELEMS - 1) / MICO_LLAMA_KV_BNCFU_Q2_FULL_ELEMS)
+#define MICO_LLAMA_KV_BNCFU_GROUP_CHUNKS \
+    (((size_t)MICO_LLAMA_KV_GROUP_SIZE + MICO_LLAMA_KV_BNCFU_Q8_ELEMS - 1) / MICO_LLAMA_KV_BNCFU_Q8_ELEMS)
+#define MICO_LLAMA_KV_BNCFU_K_GROUP_BYTES(head_size) \
+    ((size_t)MICO_LLAMA_KV_GROUP_SIZE * MICO_LLAMA_KV_BNCFU_HEAD_CHUNKS(head_size) * MICO_LLAMA_KV_BNCFU_BYTES)
+#define MICO_LLAMA_KV_BNCFU_V_GROUP_BYTES(head_size) \
+    ((((size_t)(head_size) + 3) / 4) * 4 * MICO_LLAMA_KV_BNCFU_GROUP_CHUNKS * MICO_LLAMA_KV_BNCFU_BYTES)
+#endif
+
 void MiCo_multihead_attention_f32(
     Tensor2D_F32* output,           // [n_heads, head_size] - output buffer
     const Tensor2D_F32* query,     // [n_heads, head_size] - query vectors
@@ -297,6 +314,37 @@ void MiCo_llama_kivi_attention_f32(
     const int pos,
     const MiCo_MHA_Config* cfg
 );
+
+#if defined(KIVI_BNCFU_INT8_BDOT)
+void MiCo_llama_pack_kv_group_q2t_bncfu(
+    const float* key_cache,
+    const float* value_cache,
+    int8_t* key_cache_q2t,
+    int8_t* value_cache_q2t,
+    float* key_scales,
+    float* value_scales,
+    int8_t* key_cache_bdot,
+    int8_t* value_cache_bdot,
+    const int group_id,
+    const MiCo_MHA_Config* cfg
+);
+
+void MiCo_llama_kivi_attention_f32_bncfu(
+    Tensor2D_F32* output,
+    const Tensor2D_F32* query,
+    const float* key_cache,
+    const float* value_cache,
+    const int8_t* key_cache_q2t,
+    const int8_t* value_cache_q2t,
+    const float* key_scales,
+    const float* value_scales,
+    const int8_t* key_cache_bdot,
+    const int8_t* value_cache_bdot,
+    float* att_buffer,
+    const int pos,
+    const MiCo_MHA_Config* cfg
+);
+#endif
 
 // Softmax Function
 void softmax(float* x, int size);
