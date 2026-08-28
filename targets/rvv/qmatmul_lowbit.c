@@ -8,6 +8,24 @@
 #error "The MiCo RVV target requires the RISC-V vector extension"
 #endif
 
+static inline int32_t mico_rvv_reduce_i32m4(
+    vint32m4_t value, size_t vlmax32) {
+#ifdef __riscv_zve32x
+    int32_t lanes[vlmax32];
+    __riscv_vse32_v_i32m4(lanes, value, vlmax32);
+    int32_t result = 0;
+    for (size_t lane = 0; lane < vlmax32; ++lane) {
+        result += lanes[lane];
+    }
+    return result;
+#else
+    const vint32m1_t vzero = __riscv_vmv_v_x_i32m1(0, 1);
+    const vint32m1_t vsum =
+        __riscv_vredsum_vs_i32m4_i32m1(value, vzero, vlmax32);
+    return __riscv_vmv_x_s_i32m1_i32(vsum);
+#endif
+}
+
 /*
  * Low-bit weights are packed along the innermost logical dimension. The
  * current quantizers use low-bit-first ordering within each byte.
@@ -77,10 +95,7 @@ static int32_t mico_rvv_dot_packed_k(
             offset += vl;
         }
 
-        const vint32m1_t zero = __riscv_vmv_v_x_i32m1(0, 1);
-        const vint32m1_t sum =
-            __riscv_vredsum_vs_i32m4_i32m1(vacc, zero, vlmax32);
-        result += __riscv_vmv_x_s_i32m1_i32(sum);
+        result += mico_rvv_reduce_i32m4(vacc, vlmax32);
     }
 
     return result;
@@ -116,10 +131,7 @@ static int32_t mico_rvv_dot_q8_packed_m(
         offset += vl;
     }
 
-    const vint32m1_t zero = __riscv_vmv_v_x_i32m1(0, 1);
-    const vint32m1_t sum =
-        __riscv_vredsum_vs_i32m4_i32m1(vacc, zero, vlmax32);
-    return __riscv_vmv_x_s_i32m1_i32(sum);
+    return mico_rvv_reduce_i32m4(vacc, vlmax32);
 }
 #endif
 
@@ -192,13 +204,8 @@ static __attribute__((noinline)) int32_t mico_rvv_dot_packed_direct_k(
         offset += vl;
     }
 
-    const vint32m1_t zero = __riscv_vmv_v_x_i32m1(0, 1);
-    const vint32m1_t sum0 =
-        __riscv_vredsum_vs_i32m4_i32m1(acc0, zero, vlmax32);
-    const vint32m1_t sum1 =
-        __riscv_vredsum_vs_i32m4_i32m1(acc1, zero, vlmax32);
-    return __riscv_vmv_x_s_i32m1_i32(sum0) -
-           2 * __riscv_vmv_x_s_i32m1_i32(sum1);
+    return mico_rvv_reduce_i32m4(acc0, vlmax32) -
+           2 * mico_rvv_reduce_i32m4(acc1, vlmax32);
 }
 #endif
 
