@@ -25,7 +25,15 @@ __attribute__((weak)) void MiCo_bitlinear_f32(
     const size_t n = x->shape[1];
     #ifdef USE_ALT_LAYOUT
     const size_t m = weight->shape[1];
-    MiCo_assert(wq == 8 && aq == 8, "N,K x K,M layout only supports INT8 weights and activations");
+    #ifdef MICO_RVV
+    MiCo_assert(wq == 8 || aq == 8 ||
+                 ((wq == 1 || wq == 2 || wq == 4) &&
+                  (aq == 1 || aq == 2 || aq == 4)),
+        "N,K x K,M combination is not implemented by the RVV target");
+    #else
+    MiCo_assert(wq == 8 && aq == 8,
+        "N,K x K,M low-bit kernels require the RVV target");
+    #endif
     #else
     const size_t m = weight->shape[0];
     #endif

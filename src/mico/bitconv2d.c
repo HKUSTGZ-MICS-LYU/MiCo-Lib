@@ -57,8 +57,15 @@ __attribute__((weak)) void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F3
 
     MiCo_assert(in_c % groups == 0 && out_c % groups == 0, 
         "[Conv2D] Group Mismatched!");
-    MiCo_assert(wq==8 && aq==8, 
-        "[BitConv2D] NHWC currently only support 8-bit quantization!");
+    #ifdef MICO_RVV
+    MiCo_assert(wq == 8 || aq == 8 ||
+                 ((wq == 1 || wq == 2 || wq == 4) &&
+                  (aq == 1 || aq == 2 || aq == 4)),
+        "[BitConv2D] combination is not implemented by the RVV target");
+    #else
+    MiCo_assert(wq == 8 && aq == 8,
+        "[BitConv2D] NHWC currently only supports 8-bit quantization!");
+    #endif
     #else
     MiCo_assert(out_h == y->shape[2] && out_w == y->shape[3], 
         "[Conv2D] Output Shape Mismatched!");
@@ -139,8 +146,12 @@ __attribute__((weak)) void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F3
     // Allocate temp buffer for weight reordering in grouped convolution
     qbyte* temp_weight = NULL;
     if (groups > 1) {
-        temp_weight = malloc(aligned_size * out_c_per_group * sizeof(qbyte));
+        const size_t weight_values_per_byte = 8 / wq;
+        const size_t temp_weight_row_bytes =
+            (out_c_per_group + weight_values_per_byte - 1) / weight_values_per_byte;
+        temp_weight = malloc(aligned_size * temp_weight_row_bytes * sizeof(qbyte));
         MiCo_assert(temp_weight != NULL, "Failed to allocate temp_weight buffer");
+        memset(temp_weight, 0, aligned_size * temp_weight_row_bytes * sizeof(qbyte));
     }
     #endif
 
@@ -231,11 +242,28 @@ __attribute__((weak)) void MiCo_bitconv2d_f32(Tensor4D_F32 *y, const Tensor4D_F3
                     // Destination stride: out_c_per_group
                     // TODO: This is not efficent, consider pre-processing weights at codegen
                     size_t group_start_oc = g * out_c_per_group;
+                    const size_t weight_values_per_byte = 8 / wq;
+                    const size_t source_row_bytes =
+                        (out_c + weight_values_per_byte - 1) / weight_values_per_byte;
+                    const size_t destination_row_bytes =
+                        (weight_m + weight_values_per_byte - 1) / weight_values_per_byte;
+                    const unsigned value_mask =
+                        (1u << (unsigned)wq) - 1u;
                     for (size_t k = 0; k < weight_k; k++) {
                         for (size_t m = 0; m < weight_m; m++) {
-                            // Source index: k * out_c + (group_start_oc + m)
-                            // Destination index: k * weight_m + m
-                            temp_weight[k * weight_m + m] = weight->data[k * out_c + group_start_oc + m];
+                            // Repack the selected output-channel bit fields.
+                            const size_t source_channel = group_start_oc + m;
+                            const uint8_t source_byte = (uint8_t)weight->data[
+                                k * source_row_bytes + source_channel / weight_values_per_byte];
+                            const unsigned source_shift =
+                                (unsigned)wq * (source_channel % weight_values_per_byte);
+                            const unsigned code =
+                                (source_byte >> source_shift) & value_mask;
+                            const size_t destination_index =
+                                k * destination_row_bytes + m / weight_values_per_byte;
+                            temp_weight[destination_index] |=
+                                (qbyte)(code << ((unsigned)wq *
+                                    (m % weight_values_per_byte)));
                         }
                     }
                     qw.data = temp_weight;

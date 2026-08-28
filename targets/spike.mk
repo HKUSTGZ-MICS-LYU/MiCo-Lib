@@ -8,6 +8,10 @@ CFLAGS += -DUSE_CHIPYARD -DTEST_NUM=$(TEST_NUM)
 CFLAGS += -fno-common -fno-builtin-printf -specs=htif_nano.specs
 LDFLAGS += -static 
 
+# htif_nano.ld defaults to a 128K heap, which is too small for larger tests.
+HTIF_HEAP_SIZE ?= 0x100000
+LDFLAGS += -Wl,--defsym=__heap_size=$(HTIF_HEAP_SIZE)
+
 MABI?=lp64d
 MARCH?=rv64imafdc_zicntr_zihpm
 
