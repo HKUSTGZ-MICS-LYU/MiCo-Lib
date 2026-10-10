@@ -32,7 +32,8 @@ CFLAGS += -march=$(MARCH) -mabi=$(MABI) -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -fno-builtin-printf
 CFLAGS += -DRISCV_CORALNPU -DTEST_NUM=$(TEST_NUM)
 ifeq ($(CORALNPU_RVV),1)
-CFLAGS += -DMICO_RVV
+# Native Coral implements reductions; keep compiler ISA feature macros intact.
+CFLAGS += -DMICO_RVV -DMICO_RVV_HAS_REDUCTION=1
 endif
 CFLAGS += -I$(RVV_PATH) -I$(CORALNPU_PATH)
 

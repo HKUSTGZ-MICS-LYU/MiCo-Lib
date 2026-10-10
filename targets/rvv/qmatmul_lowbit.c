@@ -1,30 +1,73 @@
 #include "mico_qnn.h"
+#include "mico_rvv_common.h"
 
-#include <stddef.h>
-#include <stdint.h>
-#include <riscv_vector.h>
-
-#ifndef __riscv_vector
-#error "The MiCo RVV target requires the RISC-V vector extension"
-#endif
-
-static inline int32_t mico_rvv_reduce_i32m4(
-    vint32m4_t value, size_t vlmax32) {
-#ifdef __riscv_zve32x
-    int32_t lanes[vlmax32];
-    __riscv_vse32_v_i32m4(lanes, value, vlmax32);
-    int32_t result = 0;
-    for (size_t lane = 0; lane < vlmax32; ++lane) {
-        result += lanes[lane];
-    }
-    return result;
+/* The same EEW == SEW restriction applies to packed byte loads. In a
+ * widening K-loop GCC may keep e16/m2 across an EEW8 load; both have identical
+ * element counts. Pin e8/m1 to the actual load, and expose its vector result.
+ */
+static inline __attribute__((always_inline)) vuint8m1_t mico_rvv_load_packed_u8m1(
+    const uint8_t *src, size_t vl) {
+#if defined(RISCV_VEXII) && defined(MICO_RVV)
+    vuint8m1_t value;
+    __asm__ volatile("vsetvli zero, %[vl], e8, m1, ta, ma\n\t"
+                     "vle8.v %[value], (%[src])"
+                     : [value] "=vr"(value)
+                     : [vl] "r"(vl), [src] "r"(src)
+                     : "memory");
+    return value;
 #else
-    const vint32m1_t vzero = __riscv_vmv_v_x_i32m1(0, 1);
-    const vint32m1_t vsum =
-        __riscv_vredsum_vs_i32m4_i32m1(value, vzero, vlmax32);
-    return __riscv_vmv_x_s_i32m1_i32(vsum);
+    return __riscv_vle8_v_u8m1(src, vl);
 #endif
 }
+
+static inline __attribute__((always_inline)) vuint8m1_t mico_rvv_load_packed_strided_u8m1(
+    const uint8_t *src, ptrdiff_t stride, size_t vl) {
+#if defined(RISCV_VEXII) && defined(MICO_RVV)
+    vuint8m1_t value;
+    __asm__ volatile("vsetvli zero, %[vl], e8, m1, ta, ma\n\t"
+                     "vlse8.v %[value], (%[src]), %[stride]"
+                     : [value] "=vr"(value)
+                     : [vl] "r"(vl), [src] "r"(src), [stride] "r"(stride)
+                     : "memory");
+    return value;
+#else
+    return __riscv_vlse8_v_u8m1(src, stride, vl);
+#endif
+}
+
+/* Coral on Vexii currently accepts output stores only when EEW == SEW.
+ * GCC may remove a standalone vsetvl when e16/m2 and e32/m4 have equal VLMAX.
+ * Keep configuration and store inseparable, with an explicit accumulator input
+ * and memory side effect. Other RVV targets retain the intrinsic implementation.
+ */
+static inline __attribute__((always_inline)) void mico_rvv_store_i32m4(
+    int32_t *dst, vint32m4_t value, size_t vl) {
+#if defined(RISCV_VEXII) && defined(MICO_RVV)
+    __asm__ volatile("vsetvli zero, %[vl], e32, m4, ta, ma\n\t"
+                     "vse32.v %[value], (%[dst])"
+                     :: [vl] "r"(vl), [value] "vr"(value), [dst] "r"(dst)
+                     : "memory");
+#else
+    (void)__riscv_vsetvl_e32m4(vl);
+    __riscv_vse32_v_i32m4(dst, value, vl);
+#endif
+}
+
+#ifdef USE_ALT_LAYOUT
+static inline __attribute__((always_inline)) void mico_rvv_store_strided_i32m4(
+    int32_t *dst, ptrdiff_t stride, vint32m4_t value, size_t vl) {
+#if defined(RISCV_VEXII) && defined(MICO_RVV)
+    __asm__ volatile("vsetvli zero, %[vl], e32, m4, ta, ma\n\t"
+                     "vsse32.v %[value], (%[dst]), %[stride]"
+                     :: [vl] "r"(vl), [value] "vr"(value), [dst] "r"(dst),
+                        [stride] "r"(stride)
+                     : "memory");
+#else
+    (void)__riscv_vsetvl_e32m4(vl);
+    __riscv_vsse32_v_i32m4(dst, stride, value, vl);
+#endif
+}
+#endif
 
 /*
  * Low-bit weights are packed along the innermost logical dimension. The
@@ -78,7 +121,7 @@ static int32_t mico_rvv_dot_packed_k(
         for (size_t offset = 0; offset < lane_length;) {
             const size_t vl = __riscv_vsetvl_e8m1(lane_length - offset);
             const vuint8m1_t packed_v =
-                __riscv_vle8_v_u8m1(packed + offset, vl);
+                mico_rvv_load_packed_u8m1(packed + offset, vl);
             const size_t raw_index = offset * values_per_byte + lane;
             const vint8m1_t raw_v = __riscv_vlse8_v_i8m1(
                 raw + raw_index * raw_stride,
@@ -117,7 +160,7 @@ static int32_t mico_rvv_dot_q8_packed_m(
     for (size_t offset = 0; offset < length;) {
         const size_t vl = __riscv_vsetvl_e8m1(length - offset);
         const vint8m1_t raw_v = __riscv_vle8_v_i8m1(raw + offset, vl);
-        const vuint8m1_t packed_v = __riscv_vlse8_v_u8m1(
+        const vuint8m1_t packed_v = mico_rvv_load_packed_strided_u8m1(
             packed + offset * row_bytes + byte_index,
             (ptrdiff_t)row_bytes, vl);
         const vint8m1_t weight_v =
@@ -178,7 +221,7 @@ static __attribute__((noinline)) int32_t mico_rvv_dot_packed_direct_k(
         (void)__riscv_vsetvl_e8m1(vl);
         const vint8m1_t raw_v = __riscv_vlse8_v_i8m1(
             raw + offset * raw_stride, (ptrdiff_t)raw_stride, vl);
-        const vuint8m1_t packed_v = __riscv_vlse8_v_u8m1(
+        const vuint8m1_t packed_v = mico_rvv_load_packed_strided_u8m1(
             packed + offset * packed_stride, (ptrdiff_t)packed_stride, vl);
         const vint16m2_t raw16 =
             __riscv_vwcvt_x_x_v_i16m2(raw_v, vl);
@@ -214,6 +257,11 @@ static __attribute__((noinline)) int32_t mico_rvv_dot_packed_direct_k(
 static void mico_rvv_q8xpacked_direct(
     int32_t *output, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w,
     unsigned bits) {
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    const mico_rvv_cache_output cache_output = mico_rvv_cache_output_begin(
+        output, x->shape[0], w->shape[0]);
+    output = cache_output.data;
+#endif
     const size_t batch_size = x->shape[0];
     const size_t inputs = x->shape[1];
     const size_t outputs = w->shape[0];
@@ -237,7 +285,7 @@ static void mico_rvv_q8xpacked_direct(
             for (size_t k = 0; k < inputs; ++k) {
                 const unsigned shift =
                     (unsigned)bits * (unsigned)(k % values_per_byte);
-                const vuint8m1_t packed_v = __riscv_vlse8_v_u8m1(
+                const vuint8m1_t packed_v = mico_rvv_load_packed_strided_u8m1(
                     packed + k / values_per_byte,
                     (ptrdiff_t)row_bytes, vl);
                 const int16_t scalar = (int16_t)x_row[k];
@@ -263,18 +311,24 @@ static void mico_rvv_q8xpacked_direct(
             const vint32m4_t twice =
                 __riscv_vsll_vx_i32m4(acc1, 1, vl);
             acc0 = __riscv_vsub_vv_i32m4(acc0, twice, vl);
-            (void)__riscv_vsetvl_e32m4(vl);
-            __riscv_vse32_v_i32m4(
+            mico_rvv_store_i32m4(
                 output + batch * outputs + output_offset, acc0, vl);
             output_offset += vl;
         }
     }
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    mico_rvv_cache_output_end(&cache_output);
+#endif
 }
 #else
 /* Alternate W[K,M]: keep each output's packed lane in a K-stream. */
 static void mico_rvv_q8xpacked_direct(
     int32_t *output, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w,
     unsigned bits) {
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    /* Alternate direct dots return scalar reductions and CPU-store O. */
+    mico_rvv_cache_inputs_clean();
+#endif
     const size_t batch_size = x->shape[0];
     const size_t inputs = x->shape[1];
     const size_t outputs = w->shape[1];
@@ -302,6 +356,16 @@ static void mico_rvv_q8xpacked_direct(
 static void mico_rvv_qpackedx8_direct(
     int32_t *output, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w,
     unsigned bits) {
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    const mico_rvv_cache_output cache_output = mico_rvv_cache_output_begin(
+        output, x->shape[0],
+#ifdef USE_ALT_LAYOUT
+        w->shape[1]);
+#else
+        w->shape[0]);
+#endif
+    output = cache_output.data;
+#endif
     const size_t batch_size = x->shape[0];
     const size_t inputs = x->shape[1];
 #ifdef USE_ALT_LAYOUT
@@ -343,18 +407,23 @@ static void mico_rvv_qpackedx8_direct(
                     acc, scalar, raw16, vl);
             }
 
-            (void)__riscv_vsetvl_e32m4(vl);
-            __riscv_vse32_v_i32m4(
+            mico_rvv_store_i32m4(
                 output + batch * outputs + output_offset, acc, vl);
             output_offset += vl;
         }
     }
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    mico_rvv_cache_output_end(&cache_output);
+#endif
 }
 
 /* Q8 input times packed low-bit weight. */
 static void mico_rvv_q8xpacked_matmul(
     int32_t *output, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w,
     unsigned bits) {
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    mico_rvv_cache_inputs_clean(); /* Scalar output: never invalidate O. */
+#endif
     const size_t batch_size = x->shape[0];
     const size_t inputs = x->shape[1];
 
@@ -390,6 +459,9 @@ static void mico_rvv_q8xpacked_matmul(
 static void mico_rvv_qpackedx8_matmul(
     int32_t *output, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w,
     unsigned bits) {
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    mico_rvv_cache_inputs_clean(); /* Scalar output: never invalidate O. */
+#endif
     const size_t batch_size = x->shape[0];
     const size_t inputs = x->shape[1];
     const size_t values_per_byte = 8u / bits;
@@ -425,6 +497,16 @@ static void mico_rvv_qpackedx8_matmul(
 static void mico_rvv_packedxpacked_matmul(
     int32_t *output, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w,
     unsigned activation_bits, unsigned weight_bits) {
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    const mico_rvv_cache_output cache_output = mico_rvv_cache_output_begin(
+        output, x->shape[0],
+#ifdef USE_ALT_LAYOUT
+        w->shape[1]);
+#else
+        w->shape[0]);
+#endif
+    output = cache_output.data;
+#endif
     const size_t batch_size = x->shape[0];
     const size_t inputs = x->shape[1];
     const size_t activation_values_per_byte = 8u / activation_bits;
@@ -459,7 +541,7 @@ static void mico_rvv_packedxpacked_matmul(
                             activation_bits,
                             (unsigned)(k % activation_values_per_byte));
                     const size_t weight_byte = k * weight_row_bytes + group;
-                    const vuint8m1_t packed_weight = __riscv_vle8_v_u8m1(
+                    const vuint8m1_t packed_weight = mico_rvv_load_packed_u8m1(
                         (const uint8_t *)w->data + weight_byte, vl);
                     const vint8m1_t weight_value = mico_rvv_decode_packed(
                         packed_weight, weight_bits, lane, vl);
@@ -469,8 +551,7 @@ static void mico_rvv_packedxpacked_matmul(
                         acc, activation_value, weight16, vl);
                 }
 
-                (void)__riscv_vsetvl_e32m4(vl);
-                __riscv_vsse32_v_i32m4(
+                mico_rvv_store_strided_i32m4(
                     output + batch * outputs + group * weight_values_per_byte + lane,
                     (ptrdiff_t)(weight_values_per_byte * sizeof(int32_t)),
                     acc, vl);
@@ -504,7 +585,7 @@ static void mico_rvv_packedxpacked_matmul(
                         activation[k / activation_values_per_byte],
                         activation_bits,
                         (unsigned)(k % activation_values_per_byte));
-                const vuint8m1_t packed_weight = __riscv_vlse8_v_u8m1(
+                const vuint8m1_t packed_weight = mico_rvv_load_packed_strided_u8m1(
                     (const uint8_t *)w->data +
                         output_offset * weight_row_bytes +
                         k / weight_values_per_byte,
@@ -518,12 +599,14 @@ static void mico_rvv_packedxpacked_matmul(
                     acc, activation_value, weight16, vl);
             }
 
-            (void)__riscv_vsetvl_e32m4(vl);
-            __riscv_vse32_v_i32m4(
+            mico_rvv_store_i32m4(
                 output + batch * outputs + output_offset, acc, vl);
             output_offset += vl;
         }
     }
+#endif
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    mico_rvv_cache_output_end(&cache_output);
 #endif
 }
 
@@ -577,8 +660,15 @@ void MiCo_Q8x4_MatMul(int32_t *O, const Tensor2D_Q8 *x,
     mico_rvv_q8xpacked_matmul(O, x, w, 4);
 }
 
+#ifdef MICO_RVV_PROFILE
+uint32_t mico_rvv_q8x2_calls;
+#endif
+
 void MiCo_Q8x2_MatMul(int32_t *O, const Tensor2D_Q8 *x,
                       const Tensor2D_Q8 *w) {
+#ifdef MICO_RVV_PROFILE
+    ++mico_rvv_q8x2_calls;
+#endif
     mico_rvv_q8xpacked_direct(O, x, w, 2);
 }
 

@@ -94,6 +94,27 @@ else
 endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
+
+# Coral RVV integer matmul on Vexii: keep the Vexii CRT and the generic
+# scalar-FP32 quantization/attention implementations. Reductions are a hardware
+# capability, not a reason to undefine the compiler's Zve32x ISA feature macro.
+ifneq ($(filter rvv, $(OPT)),)
+	MICO_SOURCES += $(MICO_DIR)/targets/rvv/qmatmul.c
+	MICO_SOURCES += $(MICO_DIR)/targets/rvv/qmatmul_lowbit.c
+	CFLAGS += -DMICO_RVV -DMICO_RVV_HAS_REDUCTION=1
+ifeq ($(RVV_CACHE_MAINTENANCE),1)
+	CFLAGS += -DMICO_RVV_EXPLICIT_CACHE
+endif
+	# Only explicit RVV kernels: keep scalar support code scalar. GCC can expand
+	# a recognized strlen loop into vle8ff even with tree vectorization disabled;
+	# Coral's bridge does not support fault-only-first memory instructions.
+	CFLAGS += -fno-tree-vectorize -fno-tree-slp-vectorize -fno-builtin
+	# Restore normal O3 inline optimization only for the new RVV backend.
+	CFLAGS += -finline
+	# Keep compiler-generated support/structure copies out of the RVV subset.
+	CFLAGS += -mstringop-strategy=scalar
+endif
+
 ifneq ($(filter cfu, $(OPT)),)
 	ifneq ($(filter legacy, $(OPT)),)
 		RISCV_SOURCE += $(wildcard $(VEXII_PATH)/cfu/v$(VLEN)/*.S)

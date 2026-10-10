@@ -1,30 +1,6 @@
 #include "mico_qnn.h"
 
-#include <stddef.h>
-#include <stdint.h>
-#include <riscv_vector.h>
-
-#ifndef __riscv_vector
-#error "The MiCo RVV target requires the RISC-V vector extension"
-#endif
-
-static inline int32_t mico_rvv_reduce_i32m4(
-    vint32m4_t value, size_t vlmax32) {
-#ifdef __riscv_zve32x
-    int32_t lanes[vlmax32];
-    __riscv_vse32_v_i32m4(lanes, value, vlmax32);
-    int32_t result = 0;
-    for (size_t lane = 0; lane < vlmax32; ++lane) {
-        result += lanes[lane];
-    }
-    return result;
-#else
-    const vint32m1_t vzero = __riscv_vmv_v_x_i32m1(0, 1);
-    const vint32m1_t vsum =
-        __riscv_vredsum_vs_i32m4_i32m1(value, vzero, vlmax32);
-    return __riscv_vmv_x_s_i32m1_i32(vsum);
-#endif
-}
+#include "mico_rvv_common.h"
 
 /*
  * Accumulate an INT8 dot product in INT32 lanes. The widening multiply
@@ -70,8 +46,19 @@ static inline int32_t mico_rvv_q8_dot_strided(
     return mico_rvv_reduce_i32m4(vacc, vlmax32);
 }
 
+#ifdef MICO_RVV_PROFILE
+uint32_t mico_rvv_q8_calls;
+#endif
+
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x,
                     const Tensor2D_Q8 *w) {
+#ifdef MICO_RVV_PROFILE
+    ++mico_rvv_q8_calls;
+#endif
+#ifdef MICO_RVV_EXPLICIT_CACHE
+    /* Scalar output stays CPU-owned; do not invalidate it. */
+    mico_rvv_cache_inputs_clean();
+#endif
     const size_t batch_size = x->shape[0];
     const size_t in_features = x->shape[1];
 #ifdef USE_ALT_LAYOUT
