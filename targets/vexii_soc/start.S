@@ -56,6 +56,8 @@ init:
 	la a0, _data_lma
 	la a1, _data
 	la a2, _edata
+	/* ELF/preloaded RAM may have identical load/run addresses: no copy needed. */
+	beq a0, a1, 2f
 	bgeu a1, a2, 2f
 1:
 	lw t0, (a0)

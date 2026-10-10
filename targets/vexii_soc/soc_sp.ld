@@ -2,6 +2,10 @@ RAM_ORIGIN = 0x80000000;
 RAM_LENGTH   = DEFINED(RAM_SIZE)   ? RAM_SIZE   : 16K;
 SPARSE_RAM_ORIGIN = 0x82000000;
 SPARSE_RAM_LENGTH = DEFINED(SPARSE_RAM_SIZE) ? SPARSE_RAM_SIZE : 64M;
+/* Private Coral RVV vector-memory window; defaults match --coral-rvv-vram-at /
+   --coral-rvv-vram-kbytes. Used by the .vram section below. */
+VRAM_ORIGIN = DEFINED(VRAM_ORIGIN_ADDR) ? VRAM_ORIGIN_ADDR : 0xA0000000;
+VRAM_LENGTH = DEFINED(VRAM_SIZE) ? VRAM_SIZE : 64K;
 __heap_size  = DEFINED(HEAP_SIZE)  ? HEAP_SIZE  : 1K;
 __stack_size = DEFINED(STACK_SIZE) ? STACK_SIZE : 1K;
 SCRATCHPAD_ALIGN = DEFINED(SCRATCHPAD_ALIGN) ? SCRATCHPAD_ALIGN : 64;
@@ -16,12 +20,14 @@ MEMORY
 {
   ram_exec  (wxai!r) : ORIGIN = RAM_ORIGIN, LENGTH = RAM_LENGTH
   ram_data  (wxai!r) : ORIGIN = SPARSE_RAM_ORIGIN, LENGTH = SPARSE_RAM_LENGTH
+  vram      (wxai!r) : ORIGIN = VRAM_ORIGIN, LENGTH = VRAM_LENGTH
 }
 
 PHDRS
 {
   ram_exec PT_LOAD;
   ram_data PT_LOAD;
+  vram PT_LOAD;
 }
 
 SECTIONS
@@ -188,4 +194,14 @@ SECTIONS
     PROVIDE( _sp = . );
 	__freertos_irq_stack_top = .;
   } >ram_data AT>ram_data :ram_data
+
+  /* Static data pinned into the private 128-bit Coral RVV VRAM window. Kept
+     last so switching the location counter to the vram region cannot disturb
+     the ram_exec scratchpad assertions above. */
+  .vram :
+  {
+    PROVIDE( __vram_section_start = . );
+    *(.vram .vram.*)
+    PROVIDE( __vram_section_end = . );
+  } >vram AT>vram :vram
 }
