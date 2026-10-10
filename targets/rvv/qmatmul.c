@@ -16,8 +16,37 @@
    shuffles around the batched accumulators. */
 static inline __attribute__((always_inline)) vint8m1_t mico_rvv_q8_load_b(
     const int8_t *p, ptrdiff_t stride, size_t vl) {
+#if defined(RISCV_VEXII) && defined(MICO_RVV)
+    /* This bridge requires EEW == SEW. Restore the compiler's entry state:
+     * pinning e8 alone can leave the following widening MAC in the wrong mode. */
+    vint8m1_t value;
+    size_t saved_vl, saved_vtype;
+    if (stride == 1) {
+        __asm__ volatile("csrr %[oldvl], vl\n\t"
+                         "csrr %[oldtype], vtype\n\t"
+                         "vsetvli zero, %[vl], e8, m1, ta, ma\n\t"
+                         "vle8.v %[value], (%[p])\n\t"
+                         "vsetvl zero, %[oldvl], %[oldtype]"
+                         : [value] "=vr"(value), [oldvl] "=&r"(saved_vl),
+                           [oldtype] "=&r"(saved_vtype)
+                         : [vl] "r"(vl), [p] "r"(p)
+                         : "memory");
+    } else {
+        __asm__ volatile("csrr %[oldvl], vl\n\t"
+                         "csrr %[oldtype], vtype\n\t"
+                         "vsetvli zero, %[vl], e8, m1, ta, ma\n\t"
+                         "vlse8.v %[value], (%[p]), %[stride]\n\t"
+                         "vsetvl zero, %[oldvl], %[oldtype]"
+                         : [value] "=vr"(value), [oldvl] "=&r"(saved_vl),
+                           [oldtype] "=&r"(saved_vtype)
+                         : [vl] "r"(vl), [p] "r"(p), [stride] "r"(stride)
+                         : "memory");
+    }
+    return value;
+#else
     return stride == 1 ? __riscv_vle8_v_i8m1(p, vl)
                        : __riscv_vlse8_v_i8m1(p, stride, vl);
+#endif
 }
 
 /* Batching amortises the activation-row load and the chunk-width setup across
@@ -38,7 +67,7 @@ static inline __attribute__((always_inline)) int32_t mico_rvv_q8_dot(
     size_t offset = 0;
     size_t vl = __riscv_vsetvl_e8m1(length);
     while (vl != 0 && offset + vl <= length) {
-        const vint8m1_t va = __riscv_vle8_v_i8m1(a + offset, vl);
+        const vint8m1_t va = mico_rvv_q8_load_b(a + offset, 1, vl);
         const vint16m2_t va16 = __riscv_vwcvt_x_x_v_i16m2(va, vl);
         const vint8m1_t vb = mico_rvv_q8_load_b(b + offset * b_stride, b_stride, vl);
         const vint16m2_t vb16 = __riscv_vwcvt_x_x_v_i16m2(vb, vl);
@@ -47,7 +76,7 @@ static inline __attribute__((always_inline)) int32_t mico_rvv_q8_dot(
     }
     if (offset < length) {
         const size_t tail = __riscv_vsetvl_e8m1(length - offset);
-        const vint8m1_t va = __riscv_vle8_v_i8m1(a + offset, tail);
+        const vint8m1_t va = mico_rvv_q8_load_b(a + offset, 1, tail);
         const vint16m2_t va16 = __riscv_vwcvt_x_x_v_i16m2(va, tail);
         const vint8m1_t vb = mico_rvv_q8_load_b(b + offset * b_stride, b_stride, tail);
         const vint16m2_t vb16 = __riscv_vwcvt_x_x_v_i16m2(vb, tail);
@@ -78,7 +107,7 @@ static inline void mico_rvv_q8_dot_batch(
     size_t offset = 0;
     size_t vl = __riscv_vsetvl_e8m1(length);
     while (vl != 0 && offset + vl <= length) {
-        const vint8m1_t va = __riscv_vle8_v_i8m1(a + offset, vl);
+        const vint8m1_t va = mico_rvv_q8_load_b(a + offset, 1, vl);
         const vint16m2_t va16 = __riscv_vwcvt_x_x_v_i16m2(va, vl);
 
         const vint8m1_t vb0 = mico_rvv_q8_load_b(b_rows[0] + offset * b_stride, b_stride, vl);
@@ -103,7 +132,7 @@ static inline void mico_rvv_q8_dot_batch(
     }
     if (offset < length) {
         const size_t tail = __riscv_vsetvl_e8m1(length - offset);
-        const vint8m1_t va = __riscv_vle8_v_i8m1(a + offset, tail);
+        const vint8m1_t va = mico_rvv_q8_load_b(a + offset, 1, tail);
         const vint16m2_t va16 = __riscv_vwcvt_x_x_v_i16m2(va, tail);
 
         const vint8m1_t vb0 = mico_rvv_q8_load_b(b_rows[0] + offset * b_stride, b_stride, tail);
