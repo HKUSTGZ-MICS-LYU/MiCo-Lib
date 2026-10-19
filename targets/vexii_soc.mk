@@ -54,6 +54,9 @@ VLEN ?= 128
 USE_SIMD ?= 32
 BITNET_QUANT ?= 3
 BNCFU_REG_DEPTH ?= 2
+# Prepacked Q8: 1 = radix4 on hardware --bitnet-cfu-with-q2;
+# default 0 = balanced ternary3 on Q1.58-only hardware. Match Python --qtype.
+BNCFU_WITH_Q2 ?= 0
 BNCFU_Q2T ?= 0
 BNCFU_Q8 ?= 0
 
@@ -141,7 +144,7 @@ endif
 
 ifneq ($(filter bncfu, $(OPT)),)
 	MICO_SOURCES += $(wildcard $(VEXII_PATH)/bncfu/*.c)
-	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN) -DBITNET_QUANT=$(BITNET_QUANT) -DBNCFU_REG_DEPTH=$(BNCFU_REG_DEPTH) -DKIVI_BNCFU_INT8_BDOT
+	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN) -DBITNET_QUANT=$(BITNET_QUANT) -DBNCFU_REG_DEPTH=$(BNCFU_REG_DEPTH) -DBNCFU_WITH_Q2=$(BNCFU_WITH_Q2) -DMICO_BNCFU_Q8_OVERRIDE -DKIVI_BNCFU_INT8_BDOT
 ifeq ($(BNCFU_Q2T),1)
 	CFLAGS += -DBNCFU_Q2T
 endif

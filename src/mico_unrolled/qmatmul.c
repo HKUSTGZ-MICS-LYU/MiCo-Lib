@@ -5,6 +5,8 @@
 
 // Unrolled Implementation of 8-bit MatMul
 // The most simple optimization to apply on MatMul
+// OPT="bncfu unroll" keeps the Q4 kernel below but selects the BNCFU Q8 entry.
+#ifndef MICO_BNCFU_Q8_OVERRIDE
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
     const size_t batch_size = x->shape[0];
@@ -33,6 +35,7 @@ void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
         }
     }
 }
+#endif
 
 void MiCo_Q4_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w){
     
