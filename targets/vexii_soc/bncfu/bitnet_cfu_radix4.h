@@ -34,6 +34,7 @@ size_t bncfu_radix4_packed_size(size_t n, size_t k, unsigned bits);
 
 /* No C weight-packing API: use weight_recode.py offline. Both explicit
  * kernels below and the BNCFU MiCo_Q8_MatMul override consume packed data.
+ * The override is opt-in: BNCFU_INT8_MATMUL=1 (default 0 uses raw W).
  * With BNCFU_WITH_Q2=1, MiCo_Q8_MatMul keeps logical w->shape=[N,K], but
  * w->data is bits=8 radix4 packed bytes, NOT generic MiCo's raw INT8 layout.
  * BNCFU_WITH_Q2=0 instead selects the distinct ternary3 packed format.

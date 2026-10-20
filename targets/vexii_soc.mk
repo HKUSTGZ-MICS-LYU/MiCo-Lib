@@ -54,6 +54,14 @@ VLEN ?= 128
 USE_SIMD ?= 32
 BITNET_QUANT ?= 3
 BNCFU_REG_DEPTH ?= 2
+# Opt in only with matching offline-packed W8 artifacts. Default keeps the
+# original raw-INT8 kernel for paper reproduction, independently of Q8 quant.
+BNCFU_INT8_MATMUL ?= 0
+ifneq ($(BNCFU_INT8_MATMUL),0)
+ifneq ($(BNCFU_INT8_MATMUL),1)
+$(error BNCFU_INT8_MATMUL must be 0 or 1)
+endif
+endif
 # Prepacked Q8: 1 = radix4 on hardware --bitnet-cfu-with-q2;
 # default 0 = balanced ternary3 on Q1.58-only hardware. Match Python --qtype.
 BNCFU_WITH_Q2 ?= 0
@@ -143,8 +151,12 @@ ifneq ($(filter bnrv, $(OPT)),)
 endif
 
 ifneq ($(filter bncfu, $(OPT)),)
-	MICO_SOURCES += $(wildcard $(VEXII_PATH)/bncfu/*.c)
-	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN) -DBITNET_QUANT=$(BITNET_QUANT) -DBNCFU_REG_DEPTH=$(BNCFU_REG_DEPTH) -DBNCFU_WITH_Q2=$(BNCFU_WITH_Q2) -DMICO_BNCFU_Q8_OVERRIDE -DKIVI_BNCFU_INT8_BDOT
+	MICO_SOURCES += $(filter-out $(VEXII_PATH)/bncfu/bitnet_cfu_q8_matmul.c,$(wildcard $(VEXII_PATH)/bncfu/*.c))
+	CFLAGS += -DMICO_ALIGN=$$(($(VLEN)/8)) -DVLEN=$(VLEN) -DBITNET_QUANT=$(BITNET_QUANT) -DBNCFU_REG_DEPTH=$(BNCFU_REG_DEPTH) -DBNCFU_WITH_Q2=$(BNCFU_WITH_Q2) -DBNCFU_INT8_MATMUL=$(BNCFU_INT8_MATMUL) -DKIVI_BNCFU_INT8_BDOT
+ifeq ($(BNCFU_INT8_MATMUL),1)
+	MICO_SOURCES += $(VEXII_PATH)/bncfu/bitnet_cfu_q8_matmul.c
+	CFLAGS += -DMICO_BNCFU_Q8_OVERRIDE
+endif
 ifeq ($(BNCFU_Q2T),1)
 	CFLAGS += -DBNCFU_Q2T
 endif

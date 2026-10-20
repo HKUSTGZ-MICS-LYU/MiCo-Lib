@@ -4,10 +4,13 @@
 #include "mico_nn.h"
 #include "qtypes.h"
 
-/* BNCFU target override: x is raw INT8 [M,K]; w->shape is logical [N,K],
+/* Default (including OPT=bncfu): ordinary raw INT8 W[N,K].
+ * Only TARGET=vexii_soc OPT=bncfu BNCFU_INT8_MATMUL=1 selects the packed
+ * BNCFU override: x is raw INT8 [M,K]; w->shape remains logical [N,K],
  * but w->data MUST be Python-prepacked (bits=8, matching VLEN, aligned/padded).
  * BNCFU_WITH_Q2=1 selects bncfu-radix4-v1; 0 selects bncfu-ternary3-v1 for
  * Q1.58-only hardware. No runtime packing/allocation or raw-weight fallback.
+ * BNCFU_Q8 controls activation quantization, not this MatMul selection.
  * Other targets and MiCo_Q8_MatMul_Ref continue to consume ordinary INT8 W.
  */
 void MiCo_Q8_MatMul(int32_t *O, const Tensor2D_Q8 *x, const Tensor2D_Q8 *w);
