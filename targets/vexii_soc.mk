@@ -106,13 +106,34 @@ endif
 
 RISCV_SOURCE = $(wildcard $(VEXII_PATH)/*.c) $(wildcard $(VEXII_PATH)/*.S)
 
-# Coral RVV integer matmul on Vexii: keep the Vexii CRT and the generic
-# scalar-FP32 quantization/attention implementations. Reductions are a hardware
-# capability, not a reason to undefine the compiler's Zve32x ISA feature macro.
+# Integer RVV matmul on Vexii: retain the Vexii CRT and scalar FP support.
+# Compiler ISA feature macros describe instruction encodings, not conformance
+# of an experimental accelerator integration. Never undefine __riscv_zve32x.
 ifneq ($(filter rvv, $(OPT)),)
+RVV_BACKEND ?= coral
+RVV_Q8_EEW_EQ_SEW ?= 1
+ifeq ($(RVV_BACKEND),coral)
+	CFLAGS += -DMICO_RVV_BACKEND_CORAL=1
+else ifeq ($(RVV_BACKEND),vicuna2)
+	CFLAGS += -DMICO_RVV_BACKEND_VICUNA2=1
+ifneq ($(filter bncfu cfu bnrv simd, $(OPT)),)
+$(error RVV_BACKEND=vicuna2 cannot be combined with another MatMul backend)
+endif
+ifeq ($(RVV_CACHE_MAINTENANCE),1)
+$(error Vicuna2 software cache maintenance is not validated; use cacheless memory)
+endif
+else
+$(error RVV_BACKEND must be coral or vicuna2)
+endif
+# Both integrations start with the proven conservative Q8 load helper. A future
+# opt-out must be paired with a real mixed-EEW correctness gate, not an unchecked
+# "verified" command-line assertion. No such gate is provided by this version.
+ifneq ($(RVV_Q8_EEW_EQ_SEW),1)
+$(error RVV_Q8_EEW_EQ_SEW must remain 1 until a mixed-EEW gate is implemented)
+endif
 	MICO_SOURCES += $(MICO_DIR)/targets/rvv/qmatmul.c
 	MICO_SOURCES += $(MICO_DIR)/targets/rvv/qmatmul_lowbit.c
-	CFLAGS += -DMICO_RVV -DMICO_RVV_HAS_REDUCTION=1
+	CFLAGS += -DMICO_RVV -DMICO_RVV_HAS_REDUCTION=1 -DMICO_RVV_Q8_EEW_EQ_SEW=$(RVV_Q8_EEW_EQ_SEW)
 ifeq ($(RVV_CACHE_MAINTENANCE),1)
 	CFLAGS += -DMICO_RVV_EXPLICIT_CACHE
 endif
