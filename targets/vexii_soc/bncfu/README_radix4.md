@@ -73,7 +73,7 @@ Python 从低位提取 `d=(w+1)%3-1; w=(w-d)//3`，正确处理负数。码为
 `-1=>11,0=>00,+1=>01`，不使用 `10`，因此没有 -2 路径也能精确计算。
 
 计算为 `Y=sum(3^p * BDOT(A,d_p))`，**不需要 42/2 correction 或 activation sum 扫描**。
-[三进制内核](bitnet_cfu_ternary3.c) 保留 INT64 分平面累加和延迟重构；
+[三进制内核](bitnet_cfu_ternary3.c) 使用 INT32 分平面累加及分块延迟重构；
 [API](bitnet_cfu_ternary3.h) 同样只含大小查询与 GEMM/GEMV，无 C 打包器。
 
 ### 连续 plane-slot 格式
@@ -148,7 +148,12 @@ W4 显式 API 不改变现有 `MiCo_Q8x4_MatMul` 的 nibble 契约。
 - VLEN 必须匹配；物理 bank 数至少为 `BNCFU_REG_DEPTH`（2..8，建议完全匹配）。
 - 每条完整 BDOT 处理 `VLEN/8` 个 activation，MACLEN 只影响内部切片/周期。
 - 推荐同步 RF，调用方独占 CFU；Q2 内核结束为 2b，三进制结束为 1.5b。
-- 两种模式均 INT64 累加、延迟重构、检查 INT32 范围，非空计算 K<=INT32_MAX。
+- 两种模式均使用 INT32 分平面累加及重构；每块最多 32768 个 K 元素。长 K 通过
+  32-bit 低字和 signed wrap 计数保留块间精确范围，仅在完整结果处检查 INT32，
+  不提前拒绝可抵消的中间溢出，也不是简单 modulo 输出。生产内核无 int64 运算；
+  非空计算仍支持 K<=INT32_MAX，没有新增 K 上限。radix4 correction 仍每行扫描一次。
+- 下文 RTL/cycles 表均为本次 INT32 累加改动之前的历史测量，不能当作当前内核的
+  性能结果。INT32 版本已做 host 数值/溢出回归与 RV32 编译检查，性能需重新计时。
 - packed W 按 B 字节对齐，完整可读且含 padding；输入输出不得重叠。
 - activation 非对齐或尾块复制到对齐栈 scratch 补零后才进行整向量 LOAD。
 - 初始 DMA fence 发布 X/W，scratch 改写后再次发布，直至 BDOT 完成才重用。
@@ -165,6 +170,7 @@ W4 显式 API 不改变现有 `MiCo_Q8x4_MatMul` 的 nibble 契约。
 python -B -m unittest discover \
   -s sw/MiCo-Lib/targets/vexii_soc/bncfu -p test_recode.py -v
 python -B sw/tests/test_bncfu_radix4_host.py
+python -B sw/tests/test_bncfu_int32_accum.py
 ```
 
 主机 6 组回归已通过，含双模式 14 个 VLEN/bank ASan/UBSan 配置、全部 W8/W4

@@ -1,4 +1,5 @@
 #include "bitnet_cfu_ternary3.h"
+#include "bitnet_cfu_recode_accum.h"
 #ifdef BNCFU_RADIX4_TEST_BACKEND
 #include "bncfu_radix4_test_backend.h"
 #else
@@ -50,7 +51,9 @@ BncfuRadix4Status bncfu_ternary3_gemm(
     const unsigned planes = bits == 8 ? 6 : 3;
     const size_t tiles = k / b + (k % b != 0);
     const size_t row_bytes = bytes / n;
-    static const int64_t coefficients[6] = {1, 3, 9, 27, 81, 243};
+    static const int32_t coefficients[6] = {1, 3, 9, 27, 81, 243};
+    const size_t chunk_tiles = BNCFU_RECODE_CHUNK_K / b;
+    const int multi_chunk = k > BNCFU_RECODE_CHUNK_K;
     int8_t scratch[BNCFU_TERNARY3_LANES]
         __attribute__((aligned(BNCFU_TERNARY3_LANES)));
 
@@ -62,40 +65,51 @@ BncfuRadix4Status bncfu_ternary3_gemm(
         for (size_t col = 0; col < n; col += BNCFU_REUSE_REGS) {
             const size_t cols = n - col < BNCFU_REUSE_REGS
                 ? n - col : BNCFU_REUSE_REGS;
-            int64_t acc[BNCFU_REUSE_REGS][6] = {{0}};
-            for (size_t tile = 0; tile < tiles; ++tile) {
-                const size_t start = tile * b;
-                const size_t count = k - start < b ? k - start : b;
-                const int8_t *a = x + start;
-                if (count < b || (uintptr_t)a % b != 0) {
-                    memset(scratch, 0, sizeof(scratch));
-                    memcpy(scratch, a, count);
-                    /* CFU DMA does not snoop dirty CPU cache lines. */
-                    bncfu_dma_fence();
-                    a = scratch;
-                }
-                /* Loading A must not reset any W bank's low-bit cursor. */
-                bncfu_load(0, a);
-                for (unsigned p = 0; p < planes; ++p) {
-                    const size_t s = tile * planes + p;
-                    if (s % 4 == 0) {
-                        for (size_t c = 0; c < cols; ++c)
-                            bncfu_load((unsigned)c + 1,
-                                packed + (col + c) * row_bytes + (s / 4) * b);
+            BncfuRecodeSum total[BNCFU_REUSE_REGS];
+            if (multi_chunk) memset(total, 0, cols * sizeof(*total));
+            for (size_t first = 0; first < tiles;) {
+                const size_t end = tiles - first < chunk_tiles
+                    ? tiles : first + chunk_tiles;
+                int32_t acc[BNCFU_REUSE_REGS][6] = {{0}};
+                for (size_t tile = first; tile < end; ++tile) {
+                    const size_t start = tile * b;
+                    const size_t count = k - start < b ? k - start : b;
+                    const int8_t *a = x + start;
+                    if (count < b || (uintptr_t)a % b != 0) {
+                        memset(scratch, 0, sizeof(scratch));
+                        memcpy(scratch, a, count);
+                        /* CFU DMA does not snoop dirty CPU cache lines. */
+                        bncfu_dma_fence();
+                        a = scratch;
                     }
-                    /* Advance each W cursor once per plane, including
-                     * planes that continue in a vector across K tiles. */
-                    for (size_t c = 0; c < cols; ++c)
-                        acc[c][p] += bncfu_bdot2(0, (unsigned)c + 1);
+                    /* Loading A must not reset any W bank's low-bit cursor. */
+                    bncfu_load(0, a);
+                    for (unsigned p = 0; p < planes; ++p) {
+                        const size_t s = tile * planes + p;
+                        if (s % 4 == 0) {
+                            for (size_t c = 0; c < cols; ++c)
+                                bncfu_load((unsigned)c + 1,
+                                    packed + (col + c) * row_bytes + (s / 4) * b);
+                        }
+                        /* Keep global tile/slot indices across chunks; no
+                         * additional W loads or cursor resets are needed. */
+                        for (size_t c = 0; c < cols; ++c)
+                            acc[c][p] += bncfu_bdot2(0, (unsigned)c + 1);
+                    }
                 }
+                for (size_t c = 0; c < cols; ++c) {
+                    int32_t result = 0;
+                    for (unsigned p = 0; p < planes; ++p)
+                        result += acc[c][p] * coefficients[p];
+                    if (multi_chunk) bncfu_recode_sum_add(&total[c], result);
+                    else output[row * n + col + c] = result;
+                }
+                first = end;
             }
-            for (size_t c = 0; c < cols; ++c) {
-                int64_t result = 0;
-                for (unsigned p = 0; p < planes; ++p)
-                    result += acc[c][p] * coefficients[p];
-                if (result < INT32_MIN || result > INT32_MAX)
-                    return BNCFU_RADIX4_ERANGE;
-                output[row * n + col + c] = (int32_t)result;
+            if (multi_chunk) {
+                for (size_t c = 0; c < cols; ++c)
+                    if (!bncfu_recode_sum_result(&total[c], output + row * n + col + c))
+                        return BNCFU_RADIX4_ERANGE;
             }
         }
     }

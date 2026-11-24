@@ -1,4 +1,5 @@
 #include "bitnet_cfu_radix4.h"
+#include "bitnet_cfu_recode_accum.h"
 #ifdef BNCFU_RADIX4_TEST_BACKEND
 #include "bncfu_radix4_test_backend.h"
 #else
@@ -49,7 +50,9 @@ BncfuRadix4Status bncfu_radix4_gemm(
     const unsigned planes = bits / 2;
     const size_t tiles = 4 / planes;
     const size_t groups = (bytes / n) / b;
-    const int correction_factor = bits == 8 ? 42 : 2;
+    const int32_t correction_factor = bits == 8 ? 42 : 2;
+    const size_t chunk_groups = BNCFU_RECODE_CHUNK_K / (b * tiles);
+    const int multi_chunk = k > BNCFU_RECODE_CHUNK_K;
     int8_t scratch[BNCFU_RADIX4_LANES] __attribute__((aligned(BNCFU_RADIX4_LANES)));
 
     bncfu_enable();
@@ -57,40 +60,64 @@ BncfuRadix4Status bncfu_radix4_gemm(
     bncfu_config(BNCFU_QTYPE_2B);
     for (size_t row = 0; row < m; ++row) {
         const int8_t *x = activation + row * k;
-        int64_t sum = 0;
-        for (size_t i = 0; i < k; ++i) sum += x[i];
-        const int64_t correction = sum * correction_factor;
+        int32_t correction32 = 0;
+        BncfuRecodeSum correction = {0, 0};
+        /* Scan X once per row, shared by every output channel. Neither the
+         * per-chunk sum nor its 42/2 correction needs wide arithmetic. */
+        for (size_t first = 0; first < k;) {
+            const size_t end = k - first < BNCFU_RECODE_CHUNK_K
+                ? k : first + BNCFU_RECODE_CHUNK_K;
+            int32_t sum = 0;
+            for (size_t i = first; i < end; ++i) sum += x[i];
+            const int32_t value = sum * correction_factor;
+            if (multi_chunk) bncfu_recode_sum_add(&correction, value);
+            else correction32 = value;
+            first = end;
+        }
         for (size_t col = 0; col < n; col += BNCFU_REUSE_REGS) {
             const size_t cols = n - col < BNCFU_REUSE_REGS ? n - col : BNCFU_REUSE_REGS;
-            int64_t acc[BNCFU_REUSE_REGS][4] = {{0}};
-            for (size_t g = 0; g < groups; ++g) {
-                for (size_t c = 0; c < cols; ++c)
-                    bncfu_load((unsigned)c + 1, packed + ((col + c) * groups + g) * b);
-                for (size_t t = 0; t < tiles; ++t) {
-                    const size_t start = (g * tiles + t) * b;
-                    if (start >= k) break;
-                    const size_t count = k - start < b ? k - start : b;
-                    const int8_t *a = x + start;
-                    if (count < b || (uintptr_t)a % b != 0) {
-                        memset(scratch, 0, sizeof(scratch));
-                        memcpy(scratch, a, count);
-                        /* CFU DMA does not snoop dirty CPU cache lines. */
-                        bncfu_dma_fence();
-                        a = scratch;
-                    }
-                    bncfu_load(0, a);
-                    for (unsigned p = 0; p < planes; ++p) {
-                        for (size_t c = 0; c < cols; ++c)
-                            acc[c][p] += bncfu_bdot2(0, (unsigned)c + 1);
+            BncfuRecodeSum total[BNCFU_REUSE_REGS];
+            if (multi_chunk)
+                for (size_t c = 0; c < cols; ++c) total[c] = correction;
+            for (size_t first = 0; first < groups;) {
+                const size_t end = groups - first < chunk_groups
+                    ? groups : first + chunk_groups;
+                int32_t acc[BNCFU_REUSE_REGS][4] = {{0}};
+                for (size_t g = first; g < end; ++g) {
+                    for (size_t c = 0; c < cols; ++c)
+                        bncfu_load((unsigned)c + 1, packed + ((col + c) * groups + g) * b);
+                    for (size_t t = 0; t < tiles; ++t) {
+                        const size_t start = (g * tiles + t) * b;
+                        if (start >= k) break;
+                        const size_t count = k - start < b ? k - start : b;
+                        const int8_t *a = x + start;
+                        if (count < b || (uintptr_t)a % b != 0) {
+                            memset(scratch, 0, sizeof(scratch));
+                            memcpy(scratch, a, count);
+                            /* CFU DMA does not snoop dirty CPU cache lines. */
+                            bncfu_dma_fence();
+                            a = scratch;
+                        }
+                        bncfu_load(0, a);
+                        for (unsigned p = 0; p < planes; ++p) {
+                            for (size_t c = 0; c < cols; ++c)
+                                acc[c][p] += bncfu_bdot2(0, (unsigned)c + 1);
+                        }
                     }
                 }
+                for (size_t c = 0; c < cols; ++c) {
+                    int32_t result = multi_chunk ? 0 : correction32;
+                    for (unsigned p = 0; p < planes; ++p)
+                        result += acc[c][p] * (INT32_C(1) << (2 * p));
+                    if (multi_chunk) bncfu_recode_sum_add(&total[c], result);
+                    else output[row * n + col + c] = result;
+                }
+                first = end;
             }
-            for (size_t c = 0; c < cols; ++c) {
-                int64_t result = correction;
-                for (unsigned p = 0; p < planes; ++p)
-                    result += acc[c][p] * (INT64_C(1) << (2 * p));
-                if (result < INT32_MIN || result > INT32_MAX) return BNCFU_RADIX4_ERANGE;
-                output[row * n + col + c] = (int32_t)result;
+            if (multi_chunk) {
+                for (size_t c = 0; c < cols; ++c)
+                    if (!bncfu_recode_sum_result(&total[c], output + row * n + col + c))
+                        return BNCFU_RADIX4_ERANGE;
             }
         }
     }

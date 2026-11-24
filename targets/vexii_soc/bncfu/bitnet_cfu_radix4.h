@@ -45,8 +45,11 @@ size_t bncfu_radix4_packed_size(size_t n, size_t k, unsigned bits);
  * compiled BNCFU_REG_DEPTH physical banks (software supports 2..8).
  * Uses all configured banks, fixed A bank0/W banks1+, and leaves qtype=2b.
  * X may be unaligned: unsafe/full-vector tails use aligned zeroed scratch.
- * int64 plane accumulators avoid signed shift/overflow during reconstruction.
- * ERANGE means a result does not fit INT32; earlier outputs may be written.
+ * CPU plane accumulation, activation sums and reconstruction use INT32
+ * in <=32768-lane chunks. A 32-bit low word plus signed wrap count preserves
+ * exact long-K cancellation/range checks without int64 arithmetic. The
+ * activation correction is still scanned once per row, shared across N.
+ * ERANGE means a final result does not fit INT32; earlier outputs may be written.
  * Empty M/N is a no-op; K=0 writes zeros. K must be <= INT32_MAX.
  * Buffers must not overlap; calls require exclusive access to the CFU.
  */

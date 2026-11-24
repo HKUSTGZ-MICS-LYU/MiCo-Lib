@@ -33,9 +33,11 @@ size_t bncfu_ternary3_packed_size(size_t n, size_t k, unsigned bits);
  * be readable, including zero padding. packed_bytes below that size
  * returns ENOSPC; invalid arguments or size overflow return EINVAL.
  * Unaligned X and partial-K tiles use aligned, zero-filled stack scratch.
- * int64 plane accumulators and delayed reconstruction avoid overflow;
- * ERANGE means a reconstructed result does not fit INT32, and earlier
- * outputs may already have been written. No saturation is performed.
+ * CPU plane accumulation and reconstruction use INT32 in <=32768-lane
+ * chunks. Long K uses a 32-bit low word plus signed wrap count between
+ * chunks (no int64 arithmetic), preserving cancellation before the final
+ * INT32 range check. ERANGE means a final result does not fit INT32, and
+ * earlier outputs may have been written. No saturation is performed.
  * Empty M/N is a no-op; K=0 writes zeros, both without touching hardware.
  * bits must be 4 or 8 even for empty inputs. K must be <= INT32_MAX for
  * nonempty M/N. Buffers must not overlap; exclusive CFU access is required.
